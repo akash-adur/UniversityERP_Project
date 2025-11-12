@@ -1,16 +1,21 @@
 package edu.univ.erp;
+
 import com.formdev.flatlaf.FlatLightLaf;
-import org.mindrot.jbcrypt.BCrypt;
+import edu.univ.erp.ui.LoginFrame; // You will create this next
+
+import javax.swing.*;
 
 public class Main {
     public static void main(String[] args) {
-        // Test 1: Can we use the FlatLaf library?
-        System.out.println("Setting up Look and Feel...");
+        // Set the modern Look and Feel (FlatLaf)
+        // This should be the very first thing you do
         FlatLightLaf.setup();
-        System.out.println("FlatLaf is working!");
 
-        // Test 2: Can we use the BCrypt library?
-        String hash = BCrypt.hashpw("testpassword", BCrypt.gensalt());
-        System.out.println("Generated password hash: " + hash);
+        // Run the UI creation on the AWT Event Dispatch Thread
+        // This is the standard, safe way to start a Swing application
+        SwingUtilities.invokeLater(() -> {
+            LoginFrame loginFrame = new LoginFrame();
+            loginFrame.setVisible(true);
+        });
     }
 }
