@@ -18,7 +18,6 @@ public class TestConnection {
             if (rs.next()) {
                 System.out.println("✅ SUCCESS: Connected to ERP DB! Maintenance Mode is: " + rs.getString(1));
             }
-
         } catch (SQLException e) {
             System.err.println("❌ FAILED: Could not connect to ERP DB.");
             e.printStackTrace();
@@ -28,7 +27,6 @@ public class TestConnection {
         try (Connection conn = DatabaseFactory.getAuthDS().getConnection();
              Statement stmt = conn.createStatement()) {
 
-            // Just a simple ping query since this DB might be empty right now
             stmt.execute("SELECT 1");
             System.out.println("✅ SUCCESS: Connected to Auth DB!");
 

@@ -2,7 +2,6 @@ package edu.univ.erp.domain;
 
 /**
  * A simple class to hold the logged-in user's data.
- * This is "session" data.
  */
 public class UserSession {
     private final int userId;
@@ -18,11 +17,9 @@ public class UserSession {
     public int getUserId() {
         return userId;
     }
-
     public String getUsername() {
         return username;
     }
-
     public String getRole() {
         return role;
     }
