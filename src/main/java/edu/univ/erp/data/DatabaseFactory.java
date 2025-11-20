@@ -16,18 +16,20 @@ public class DatabaseFactory {
 
     private static void initAuthDB() {
         HikariConfig config = new HikariConfig();
+        // !! IMPORTANT: Change the URL, username, and password !!
         config.setJdbcUrl("jdbc:mysql://localhost:3306/AuthDB");
         config.setUsername("root");
-        config.setPassword("akash6170"); // REPLACE THIS
+        config.setPassword("akash6170"); // !! REPLACE THIS
         config.setMaximumPoolSize(5);
         authDataSource = new HikariDataSource(config);
     }
 
     private static void initERPDB() {
         HikariConfig config = new HikariConfig();
+        // !! IMPORTANT: Change the URL, username, and password !!
         config.setJdbcUrl("jdbc:mysql://localhost:3306/ERPDB");
         config.setUsername("root");
-        config.setPassword("akash6170"); // REPLACE THIS
+        config.setPassword("akash6170"); // !! REPLACE THIS
         config.setMaximumPoolSize(10);
         erpDataSource = new HikariDataSource(config);
     }
