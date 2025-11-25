@@ -101,6 +101,10 @@ public class DatabaseSetup {
                     "student_id INT NOT NULL, " +
                     "section_id INT NOT NULL, " +
                     "status VARCHAR(20) DEFAULT 'enrolled', " +
+                    "score_quiz DECIMAL(5,2) DEFAULT 0.00, " +
+                    "score_midterm DECIMAL(5,2) DEFAULT 0.00, " +
+                    "score_final DECIMAL(5,2) DEFAULT 0.00, " +
+                    "final_grade VARCHAR(5) DEFAULT 'N/A', " +
                     "UNIQUE(student_id, section_id), " +
                     "FOREIGN KEY (student_id) REFERENCES students(user_id), " +
                     "FOREIGN KEY (section_id) REFERENCES sections(section_id))";
