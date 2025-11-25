@@ -22,6 +22,14 @@ public class StudentService {
         this.adminService = new AdminService();
     }
 
+    // --- NEW HELPER METHOD FOR MAINTENANCE MODE ---
+    private void checkMaintenanceMode() throws Exception {
+        String mode = adminService.getSetting("maintenance_mode");
+        if ("true".equalsIgnoreCase(mode)) {
+            throw new Exception("⚠️ System is under maintenance. Actions are currently disabled.");
+        }
+    }
+
     /**
      * Fetches all sections for a specific course.
      */
@@ -56,7 +64,9 @@ public class StudentService {
      * Attempts to register a student for a section.
      */
     public void registerForSection(int studentId, int sectionId) throws Exception {
-        // This version has NO maintenance check
+        // --- MAINTENANCE CHECK ---
+        checkMaintenanceMode();
+
         Connection conn = null;
         try {
             conn = DatabaseFactory.getErpDS().getConnection();
@@ -105,9 +115,13 @@ public class StudentService {
     /**
      * Fetches all enrollments for a specific student.
      */
+    /**
+     * Fetches all enrollments for a specific student (UPDATED TO FETCH GRADES).
+     */
     public List<EnrollmentDetails> getEnrollmentsForStudent(int studentId) throws SQLException {
         List<EnrollmentDetails> details = new ArrayList<>();
-        String sql = "SELECT e.enrollment_id, e.status, " +
+        // Added 'e.final_grade' to the SELECT list
+        String sql = "SELECT e.enrollment_id, e.status, e.final_grade, " +
                 "s.section_id, s.day_time, s.room, " +
                 "c.code, c.title, " +
                 "COALESCE(i.title, 'TBD') as instructorName " +
@@ -116,11 +130,16 @@ public class StudentService {
                 "JOIN ERPDB.courses c ON s.course_id = c.course_id " +
                 "LEFT JOIN ERPDB.instructors i ON s.instructor_id = i.user_id " +
                 "WHERE e.student_id = ?";
+
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, studentId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
+                    // Handle null grades gracefully
+                    String grade = rs.getString("final_grade");
+                    if (grade == null) grade = "N/A";
+
                     details.add(new EnrollmentDetails(
                             rs.getInt("enrollment_id"),
                             rs.getInt("section_id"),
@@ -129,7 +148,8 @@ public class StudentService {
                             rs.getString("day_time"),
                             rs.getString("room"),
                             rs.getString("instructorName"),
-                            rs.getString("status")
+                            rs.getString("status"),
+                            grade // <--- PASS THE REAL GRADE HERE
                     ));
                 }
             }
@@ -157,12 +177,14 @@ public class StudentService {
      * Drops a student from a section.
      */
     public void dropSection(int enrollmentId) throws Exception {
-        // --- ADDED DEADLINE CHECK ---
+        // --- MAINTENANCE CHECK ---
+        checkMaintenanceMode();
+
+        // --- DEADLINE CHECK ---
         LocalDate deadline = getDropDeadline();
         if (LocalDate.now().isAfter(deadline)) {
             throw new Exception("Drop failed: The drop deadline (" + deadline + ") has passed.");
         }
-        // --- End of checks ---
 
         String sql = "DELETE FROM ERPDB.enrollments WHERE enrollment_id = ?";
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();

@@ -4,8 +4,12 @@ import edu.univ.erp.domain.UserSession;
 import edu.univ.erp.service.AdminService;
 import edu.univ.erp.service.StudentService;
 import edu.univ.erp.ui.admin.AdminCoursePanel;
+import edu.univ.erp.ui.admin.AdminMaintenancePanel;
 import edu.univ.erp.ui.admin.AdminUserPanel;
+import edu.univ.erp.ui.instructor.InstructorGradebookPanel;
+import edu.univ.erp.ui.instructor.InstructorSectionsPanel;
 import edu.univ.erp.ui.student.StudentCatalogPanel;
+import edu.univ.erp.ui.student.StudentGradesPanel;
 import edu.univ.erp.ui.student.StudentRegistrationsPanel;
 
 import javax.swing.*;
@@ -29,14 +33,56 @@ public class MainFrame extends JFrame {
         setMinimumSize(new Dimension(800, 600));
         setLocationRelativeTo(null);
 
+        // --- UPDATED LAYOUT FOR BANNER ---
         setLayout(new BorderLayout());
 
-        add(createTopPanel(), BorderLayout.NORTH);
-        add(createMainTabs(), BorderLayout.CENTER);
+        // 1. Create Main Container to hold Banner + Content
+        JPanel mainContainer = new JPanel(new BorderLayout());
+        add(mainContainer, BorderLayout.CENTER);
 
+        // 2. Add Maintenance Banner Check
+        addMaintenanceBanner(mainContainer);
+
+        // 3. Create Top Panel (Welcome + Logout)
+        JPanel topPanel = createTopPanel();
+
+        // 4. Create Main Content Tabs
+        JTabbedPane tabbedPane = createMainTabs();
+
+        // 5. Assemble Center Content (Top Panel + Tabs)
+        JPanel centerContent = new JPanel(new BorderLayout());
+        centerContent.add(topPanel, BorderLayout.NORTH);
+        centerContent.add(tabbedPane, BorderLayout.CENTER);
+
+        mainContainer.add(centerContent, BorderLayout.CENTER);
+
+        // 6. Status Bar (Bottom)
         JLabel statusBar = new JLabel("Logged in as: " + session.getUsername() + " (" + session.getRole() + ")");
         statusBar.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         add(statusBar, BorderLayout.SOUTH);
+    }
+
+    /**
+     * Checks the database settings and adds a red banner if maintenance is ON.
+     */
+    private void addMaintenanceBanner(JPanel container) {
+        try {
+            String mode = adminService.getSetting("maintenance_mode");
+            if ("true".equalsIgnoreCase(mode)) {
+                JLabel banner = new JLabel("⚠️ SYSTEM UNDER MAINTENANCE - CHANGES RESTRICTED ⚠️", SwingConstants.CENTER);
+                banner.setOpaque(true);
+                banner.setBackground(Color.RED);
+                banner.setForeground(Color.WHITE);
+                banner.setFont(new Font("Segoe UI", Font.BOLD, 14));
+                banner.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));
+
+                // Add banner to the very top of the main container
+                container.add(banner, BorderLayout.NORTH);
+            }
+        } catch (Exception e) {
+            // Ignore if DB error on startup (banner just won't show)
+            System.err.println("Could not check maintenance status: " + e.getMessage());
+        }
     }
 
     private JPanel createTopPanel() {
@@ -52,37 +98,35 @@ public class MainFrame extends JFrame {
         panel.add(welcomeLabel, BorderLayout.WEST);
         panel.add(logoutButton, BorderLayout.EAST);
 
-        // This version does NOT have the maintenance banner
-
         return panel;
     }
 
     private JTabbedPane createMainTabs() {
         JTabbedPane tabbedPane = new JTabbedPane();
 
-        tabbedPane.addTab("Home", new JPanel()); // Placeholder
+        tabbedPane.addTab("Home", new JPanel()); // Placeholder or Welcome text
 
         // --- Student Tabs ---
         if (session.isStudent()) {
             tabbedPane.addTab("Course Catalog", new StudentCatalogPanel(session, studentService));
             tabbedPane.addTab("My Registrations", new StudentRegistrationsPanel(session, studentService));
-            tabbedPane.addTab("My Grades", new JPanel()); // Placeholder
+            // UPDATED: Now uses the real grades panel
+            tabbedPane.addTab("My Grades", new StudentGradesPanel(session, studentService));
         }
 
         // --- Instructor Tabs ---
         if (session.isInstructor()) {
-            // This tab is a placeholder
-            tabbedPane.addTab("My Sections", new JPanel());
-            tabbedPane.addTab("Gradebook", new JPanel());
+            // UPDATED: Now uses real instructor panels
+            tabbedPane.addTab("My Sections", new InstructorSectionsPanel(session));
+            tabbedPane.addTab("Gradebook", new InstructorGradebookPanel(session));
         }
 
         // --- Admin Tabs ---
         if (session.isAdmin()) {
-            // All panels are now passed the AdminService
             tabbedPane.addTab("User Management", new AdminUserPanel(adminService));
             tabbedPane.addTab("Course Management", new AdminCoursePanel(adminService));
-            // This tab is a placeholder
-            tabbedPane.addTab("Maintenance", new JPanel());
+            // UPDATED: Now uses the real maintenance panel
+            tabbedPane.addTab("Maintenance", new AdminMaintenancePanel(adminService));
         }
 
         return tabbedPane;

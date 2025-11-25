@@ -10,7 +10,7 @@ public class DatabaseSetup {
     // !!! CONFIGURE THESE !!!
     private static final String DB_URL = "jdbc:mysql://localhost:3306/"; // Connect to server, not a specific DB yet
     private static final String DB_USER = "root";
-    private static final String DB_PASSWORD = "password"; // <--- CHANGE THIS
+    private static final String DB_PASSWORD = "prakhar7896"; // <--- CHANGE THIS
 
     public static void main(String[] args) {
         System.out.println("... Starting Database Setup ...");
@@ -41,7 +41,7 @@ public class DatabaseSetup {
             // Seed Users (Password is 'password123')
             // We use 'INSERT IGNORE' so it doesn't crash if you run it twice
             String insertUsers = "INSERT IGNORE INTO users_auth (user_id, username, role, password_hash, status) VALUES " +
-                    "(1, 'admin1', 'Admin', '$2a$10$e.CqK3.pS.18U.G8sB0kU.cZg3KjX.Kj.Z5aP.qR8sT.uV0wX.y', 'active'), " +
+                    "(1, 'admin1', 'Admin', '$2a$10$rRiAi4DLdyb9.9wpMWaMze/NLsoZeNtJ5KPI.WajjuObbOxKV/KOW', 'active'), " +
                     "(2, 'inst1', 'Instructor', '$2a$10$wS/6y0T1J.fS7sK/P.9hS.uJ1bT.L9.qR8sT.uV0wX.y', 'active'), " +
                     "(3, 'stu1', 'Student', '$2a$10$A.b1c2D3e.4f5G6h7i.8j.K.qR8sT.uV0wX.y', 'active'), " +
                     "(4, 'stu2', 'Student', '$2a$10$kL.mN9oP.qR8sT.uV0wX.y.qR8sT.uV0wX.y', 'active')";
