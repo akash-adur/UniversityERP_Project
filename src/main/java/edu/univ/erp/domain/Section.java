@@ -40,4 +40,12 @@ public class Section {
     public void setInstructorName(String instructorName) {
         this.instructorName = instructorName;
     }
+
+    @Override
+    public String toString() {
+        // This controls what is shown in the dropdown
+        // Example output: "CS101 - Mon/Wed 10:00 (Room 101)"
+        String label = (courseCode != null ? courseCode : "Section " + sectionId);
+        return label + " - " + dayTime + " (" + room + ")";
+    }
 }

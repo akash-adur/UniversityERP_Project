@@ -11,6 +11,7 @@ import edu.univ.erp.ui.instructor.InstructorSectionsPanel;
 import edu.univ.erp.ui.student.StudentCatalogPanel;
 import edu.univ.erp.ui.student.StudentGradesPanel;
 import edu.univ.erp.ui.student.StudentRegistrationsPanel;
+import edu.univ.erp.ui.instructor.InstructorGradesManagementPanel;
 
 import javax.swing.*;
 import java.awt.*;
@@ -116,9 +117,11 @@ public class MainFrame extends JFrame {
 
         // --- Instructor Tabs ---
         if (session.isInstructor()) {
-            // UPDATED: Now uses real instructor panels
             tabbedPane.addTab("My Sections", new InstructorSectionsPanel(session));
-            tabbedPane.addTab("Gradebook", new InstructorGradebookPanel(session));
+            // 1. New Management Panel
+            tabbedPane.addTab("Grades Management", new InstructorGradesManagementPanel(session));
+            // 2. Old (now View-Only) Gradebook
+            tabbedPane.addTab("Gradebook View", new InstructorGradebookPanel(session));
         }
 
         // --- Admin Tabs ---

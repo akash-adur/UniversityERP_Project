@@ -22,7 +22,8 @@ public class AdminMaintenancePanel extends JPanel {
         gbc.gridx = 0; gbc.gridy = 0;
 
         statusLabel = new JLabel("Loading...");
-        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        // FIX: Changed "Segoe UI" to Font.SANS_SERIF to fix macOS emoji rendering bug
+        statusLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
         add(statusLabel, gbc);
 
         gbc.gridy = 1;
@@ -55,6 +56,8 @@ public class AdminMaintenancePanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Maintenance Mode Updated!");
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
+            // Revert on failure
+            toggleButton.setSelected(!turnOn);
         }
     }
 
@@ -66,7 +69,7 @@ public class AdminMaintenancePanel extends JPanel {
             toggleButton.setText("Turn Maintenance OFF");
         } else {
             statusLabel.setText("🟢 System is Normal");
-            statusLabel.setForeground(new Color(0, 128, 0));
+            statusLabel.setForeground(new Color(0, 128, 0)); // Dark Green
             toggleButton.setText("Turn Maintenance ON");
         }
     }
