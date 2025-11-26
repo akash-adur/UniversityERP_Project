@@ -26,6 +26,7 @@ public class StudentGradesPanel extends JPanel {
     private JTable gradesTable;
     private DefaultTableModel tableModel;
     private JComboBox<String> semesterFilter;
+    private JLabel sgpaLabel;
     private List<EnrollmentDetails> allEnrollments = new ArrayList<>();
 
     private Map<String, String> displayToTermMap = new LinkedHashMap<>();
@@ -53,7 +54,7 @@ public class StudentGradesPanel extends JPanel {
 
         add(topPanel, BorderLayout.NORTH);
 
-        // --- 2. Table Setup (Added Quiz/Mid/Final) ---
+        // --- 2. Table Setup ---
         String[] columnNames = {"Term", "Course", "Credits", "Quiz", "Midterm", "Final", "Grade"};
 
         tableModel = new DefaultTableModel(columnNames, 0) {
@@ -73,9 +74,18 @@ public class StudentGradesPanel extends JPanel {
 
         add(new JScrollPane(gradesTable), BorderLayout.CENTER);
 
-        // --- 3. Buttons ---
-        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        // --- 3. Bottom Panel (Buttons + SGPA) ---
+        JPanel bottomPanel = new JPanel(new BorderLayout());
 
+        // LEFT: SGPA Label
+        sgpaLabel = new JLabel("SGPA: N/A");
+        sgpaLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        sgpaLabel.setForeground(new Color(0, 102, 204));
+        sgpaLabel.setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 0));
+        bottomPanel.add(sgpaLabel, BorderLayout.WEST);
+
+        // RIGHT: Buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton exportButton = new JButton("Download Transcript (CSV)");
         exportButton.setBackground(new Color(0, 100, 0));
         exportButton.setForeground(Color.WHITE);
@@ -84,9 +94,11 @@ public class StudentGradesPanel extends JPanel {
         JButton refreshButton = new JButton("Refresh Grades");
         refreshButton.addActionListener(e -> loadData());
 
-        bottomPanel.add(exportButton);
-        bottomPanel.add(Box.createHorizontalStrut(10));
-        bottomPanel.add(refreshButton);
+        buttonPanel.add(exportButton);
+        buttonPanel.add(Box.createHorizontalStrut(10));
+        buttonPanel.add(refreshButton);
+
+        bottomPanel.add(buttonPanel, BorderLayout.EAST);
 
         add(bottomPanel, BorderLayout.SOUTH);
 
@@ -155,16 +167,56 @@ public class StudentGradesPanel extends JPanel {
                     .collect(Collectors.toList());
         }
 
+        // --- SGPA CALCULATION ---
+        double totalPoints = 0;
+        double totalCredits = 0;
+
         for (EnrollmentDetails e : filtered) {
             tableModel.addRow(new Object[]{
                     e.getTerm(),
                     e.getCourseCode() + ": " + e.getCourseTitle(),
                     String.valueOf(e.getCredits()),
-                    String.format("%.1f", e.getQuiz()),    // NEW
-                    String.format("%.1f", e.getMidterm()), // NEW
-                    String.format("%.1f", e.getFinals()),  // NEW
+                    String.format("%.1f", e.getQuiz()),
+                    String.format("%.1f", e.getMidterm()),
+                    String.format("%.1f", e.getFinals()),
                     e.getFinalGrade()
             });
+
+            String g = e.getFinalGrade();
+            // Ignore N/A, S, X
+            if (g != null && !g.equals("N/A") && !g.equals("S") && !g.equals("X")) {
+                double points = getGradePoints(g);
+                if (points >= 0) {
+                    totalPoints += points * e.getCredits();
+                    totalCredits += e.getCredits();
+                }
+            }
+        }
+
+        // Update Label
+        if (totalCredits > 0) {
+            double sgpa = totalPoints / totalCredits;
+            String labelText = "ALL".equals(targetTerm) ? "CGPA" : "SGPA";
+            sgpaLabel.setText(String.format("%s: %.2f", labelText, sgpa));
+        } else {
+            sgpaLabel.setText("SGPA: N/A");
+        }
+    }
+
+    // --- UPDATED SCALE ---
+    private double getGradePoints(String grade) {
+        if (grade == null) return -1.0;
+
+        switch (grade.toUpperCase()) {
+            case "A": return 10.0;
+            case "A-": return 9.0;
+            case "B": return 8.0;
+            case "B-": return 7.0;
+            case "C": return 6.0;
+            case "C-": return 5.0;
+            case "D": return 4.0;
+            case "F": return 0.0;
+            default: return -1.0; // Ignore other text (e.g. "Absent")
         }
     }
 

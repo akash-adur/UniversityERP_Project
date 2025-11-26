@@ -98,8 +98,8 @@ public class AdminService {
         }
     }
 
-    public void createSection(int courseId, String dayTime, String room, int capacity, String semester, int year) throws SQLException {
-        String sql = "INSERT INTO ERPDB.sections (course_id, day_time, room, capacity, semester, year, instructor_id) VALUES (?, ?, ?, ?, ?, ?, NULL)";
+    public void createSection(int courseId, String dayTime, String room, int capacity, String semester, int year, String sectionName) throws SQLException {
+        String sql = "INSERT INTO ERPDB.sections (course_id, day_time, room, capacity, semester, year, section_name, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)";
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, courseId);
@@ -108,6 +108,7 @@ public class AdminService {
             stmt.setInt(4, capacity);
             stmt.setString(5, semester);
             stmt.setInt(6, year);
+            stmt.setString(7, sectionName);
             stmt.executeUpdate();
         }
     }
@@ -134,8 +135,7 @@ public class AdminService {
 
     public List<Section> getAllSections() throws SQLException {
         List<Section> sections = new ArrayList<>();
-        // Updated to select semester and year
-        String sql = "SELECT s.section_id, s.course_id, s.day_time, s.room, s.capacity, s.semester, s.year, " +
+        String sql = "SELECT s.section_id, s.course_id, s.day_time, s.room, s.capacity, s.semester, s.year, s.section_name, " +
                 "c.code as courseCode, " +
                 "COALESCE(u.username, 'TBD') as instructorName " +
                 "FROM ERPDB.sections s " +
@@ -155,7 +155,8 @@ public class AdminService {
                         rs.getString("room"),
                         rs.getInt("capacity"),
                         rs.getString("semester"),
-                        rs.getInt("year")
+                        rs.getInt("year"),
+                        rs.getString("section_name")
                 );
                 s.setCourseCode(rs.getString("courseCode"));
                 s.setInstructorName(rs.getString("instructorName"));
@@ -172,6 +173,19 @@ public class AdminService {
             stmt.setInt(1, instructorId);
             stmt.setInt(2, sectionId);
             stmt.executeUpdate();
+        }
+    }
+
+    // --- NEW METHOD: Unlock User ---
+    public void unlockUser(String username) throws SQLException {
+        String sql = "UPDATE AuthDB.users_auth SET status = 'active', failed_attempts = 0 WHERE username = ?";
+        try (Connection conn = DatabaseFactory.getAuthDS().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, username);
+            int rows = stmt.executeUpdate();
+            if (rows == 0) {
+                throw new SQLException("User not found.");
+            }
         }
     }
 }

@@ -5,6 +5,8 @@ import edu.univ.erp.domain.UserSession;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.concurrent.ExecutionException;
 
 public class LoginFrame extends JFrame {
@@ -16,6 +18,7 @@ public class LoginFrame extends JFrame {
     private final JPasswordField passField = new JPasswordField(20);
     private final JButton loginButton = new JButton("Login");
     private final JLabel statusLabel = new JLabel(" "); // For error messages
+    private final JLabel changePassLink = new JLabel("Change Password"); // New Link
 
     public LoginFrame() {
         this.authService = new AuthService();
@@ -23,12 +26,10 @@ public class LoginFrame extends JFrame {
         setTitle("University ERP Login");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // Use a main panel with a border layout for the "Card" look
         JPanel mainPanel = new JPanel(new GridBagLayout());
-        mainPanel.setBackground(new Color(240, 240, 245)); // Light gray background
+        mainPanel.setBackground(new Color(240, 240, 245));
         setContentPane(mainPanel);
 
-        // --- Login Box (The White Card) ---
         JPanel loginBox = new JPanel(new GridBagLayout());
         loginBox.setBackground(Color.WHITE);
         loginBox.setBorder(BorderFactory.createCompoundBorder(
@@ -40,7 +41,6 @@ public class LoginFrame extends JFrame {
         gbc.insets = new Insets(10, 10, 10, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Title
         JLabel titleLbl = new JLabel("University ERP");
         titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 24));
         titleLbl.setHorizontalAlignment(SwingConstants.CENTER);
@@ -49,7 +49,6 @@ public class LoginFrame extends JFrame {
         gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
         loginBox.add(titleLbl, gbc);
 
-        // Username
         gbc.gridy = 1; gbc.gridwidth = 1;
         gbc.weightx = 0;
         loginBox.add(new JLabel("Username:"), gbc);
@@ -58,7 +57,6 @@ public class LoginFrame extends JFrame {
         gbc.weightx = 1.0;
         loginBox.add(userField, gbc);
 
-        // Password
         gbc.gridx = 0; gbc.gridy = 2;
         gbc.weightx = 0;
         loginBox.add(new JLabel("Password:"), gbc);
@@ -67,7 +65,6 @@ public class LoginFrame extends JFrame {
         gbc.weightx = 1.0;
         loginBox.add(passField, gbc);
 
-        // Login Button
         loginButton.setBackground(new Color(0, 120, 215));
         loginButton.setForeground(Color.WHITE);
         loginButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
@@ -78,8 +75,7 @@ public class LoginFrame extends JFrame {
         gbc.anchor = GridBagConstraints.CENTER;
         loginBox.add(loginButton, gbc);
 
-        // Status Label
-        statusLabel.setForeground(new Color(220, 50, 50)); // Red
+        statusLabel.setForeground(new Color(220, 50, 50));
         statusLabel.setHorizontalAlignment(SwingConstants.CENTER);
         statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
 
@@ -87,22 +83,32 @@ public class LoginFrame extends JFrame {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         loginBox.add(statusLabel, gbc);
 
-        // Add Login Box to Main Panel
+        // --- Change Password Link ---
+        changePassLink.setForeground(new Color(0, 102, 204));
+        changePassLink.setHorizontalAlignment(SwingConstants.CENTER);
+        changePassLink.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        changePassLink.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+
+        changePassLink.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                new ChangePasswordDialog(LoginFrame.this).setVisible(true);
+            }
+        });
+
+        gbc.gridy = 5;
+        loginBox.add(changePassLink, gbc);
+
         mainPanel.add(loginBox);
 
-        // --- Finalize Frame ---
         pack();
         setMinimumSize(new Dimension(500, 400));
-        setLocationRelativeTo(null); // Center on screen
+        setLocationRelativeTo(null);
 
-        // --- Action Listeners ---
         loginButton.addActionListener(e -> performLogin());
         passField.addActionListener(e -> performLogin());
     }
 
-    /**
-     * Handles login with a "Please Wait" dialog and background worker.
-     */
     private void performLogin() {
         String username = userField.getText().trim();
         String password = new String(passField.getPassword());
@@ -112,7 +118,6 @@ public class LoginFrame extends JFrame {
             return;
         }
 
-        // 1. Create the "Please Wait" Dialog
         JDialog waitDialog = new JDialog(this, "Authenticating", true);
         JPanel p = new JPanel(new BorderLayout(15, 15));
         p.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
@@ -127,46 +132,53 @@ public class LoginFrame extends JFrame {
         waitDialog.setLocationRelativeTo(this);
         waitDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
 
-        // 2. Create Background Worker
         SwingWorker<UserSession, Void> loginWorker = new SwingWorker<>() {
             @Override
             protected UserSession doInBackground() throws Exception {
-                // Simulate a slight network delay for better UX (optional)
                 Thread.sleep(500);
                 return authService.login(username, password);
             }
 
             @Override
             protected void done() {
-                waitDialog.dispose(); // Close the loading popup
+                waitDialog.dispose();
 
                 try {
-                    UserSession session = get(); // Get result (or throw exception)
-
-                    // Login Successful
+                    UserSession session = get();
                     MainFrame mainFrame = new MainFrame(session);
                     mainFrame.setVisible(true);
-                    dispose(); // Close Login Frame
+                    dispose();
 
                 } catch (InterruptedException e) {
                     statusLabel.setText("Login interrupted.");
                 } catch (ExecutionException e) {
-                    // Extract the actual cause (AuthException or Database error)
                     Throwable cause = e.getCause();
                     if (cause != null) {
-                        statusLabel.setText(cause.getMessage());
+                        String msg = cause.getMessage();
+                        statusLabel.setText(msg);
+
+                        if (msg.contains("Account locked")) {
+                            userField.setEnabled(false);
+                            passField.setEnabled(false);
+                            loginButton.setEnabled(false);
+
+                            JOptionPane.showMessageDialog(LoginFrame.this,
+                                    "Account has been locked due to too many tries.\nPlease contact the admin to unlock the account.",
+                                    "Account Locked",
+                                    JOptionPane.ERROR_MESSAGE);
+                        } else {
+                            shakeFrame();
+                        }
                     } else {
                         statusLabel.setText("Unknown login error occurred.");
+                        shakeFrame();
                     }
-                    // Shake animation for visual feedback (Optional polish)
-                    shakeFrame();
                 }
             }
         };
 
-        // 3. Start Worker and Show Dialog
         loginWorker.execute();
-        waitDialog.setVisible(true); // This blocks user input until worker calls dispose()
+        waitDialog.setVisible(true);
     }
 
     private void shakeFrame() {

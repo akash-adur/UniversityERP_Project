@@ -16,22 +16,30 @@ public class AdminCoursePanel extends JPanel {
     private final CourseDAO courseDAO;
     private final BackupService backupService;
 
-    // Course form
+    // --- Course Form Components ---
     private final JTextField courseCodeField = new JTextField(10);
     private final JTextField courseTitleField = new JTextField(20);
     private final JSpinner courseCreditsSpinner = new JSpinner(new SpinnerNumberModel(4, 1, 6, 1));
 
-    // Section form
+    // --- Section Form Components ---
     private final JComboBox<Course> courseDropdown = new JComboBox<>();
-    private final JTextField sectionDayTimeField = new JTextField(15);
+
+    // UPDATED: Split Day/Time into two fields
+    private final JTextField sectionDaysField = new JTextField(8); // e.g. Mon/Wed
+    private final JTextField sectionTimeField = new JTextField(8); // e.g. 10:00
+
     private final JTextField sectionRoomField = new JTextField(10);
     private final JSpinner sectionCapacitySpinner = new JSpinner(new SpinnerNumberModel(50, 1, 300, 1));
+
+    // NEW: Section Name Components
+    private final JCheckBox hasSectionNameCheck = new JCheckBox("Assign Section Name?");
+    private final JTextField sectionNameField = new JTextField(5);
 
     // Semester
     private final JComboBox<String> semesterDropdown = new JComboBox<>(new String[]{"Monsoon", "Winter", "Summer"});
     private final JSpinner yearSpinner = new JSpinner(new SpinnerNumberModel(2025, 2020, 2030, 1));
 
-    // Deadlines
+    // --- Settings Components ---
     private final JTextField dropDeadlineField = new JTextField(10);
     private final JTextField addDeadlineField = new JTextField(10);
     private final JButton saveSettingsButton = new JButton("Save Settings");
@@ -43,92 +51,21 @@ public class AdminCoursePanel extends JPanel {
         this.courseDAO = new CourseDAO();
         this.backupService = new BackupService();
 
-        setLayout(new BorderLayout(10, 10)); // Use BorderLayout for the main panel
+        setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // --- TOP: Creation Forms (Side-by-Side) ---
-        JPanel topContainer = new JPanel(new GridLayout(1, 2, 10, 0)); // 1 row, 2 cols
+        JPanel topContainer = new JPanel(new GridLayout(1, 2, 10, 0));
 
         // 1. Create Course Panel
         JPanel createCoursePanel = new JPanel(new GridBagLayout());
         createCoursePanel.setBorder(BorderFactory.createTitledBorder("Create New Course"));
-
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1.0;
-
-        gbc.gridx = 0; gbc.gridy = 0; gbc.anchor = GridBagConstraints.LINE_END;
-        createCoursePanel.add(new JLabel("Code:"), gbc);
-        gbc.gridx = 1; gbc.gridy = 0; gbc.anchor = GridBagConstraints.LINE_START;
-        createCoursePanel.add(courseCodeField, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 1;
-        createCoursePanel.add(new JLabel("Title:"), gbc);
-        gbc.gridx = 1; gbc.gridy = 1;
-        createCoursePanel.add(courseTitleField, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 2;
-        createCoursePanel.add(new JLabel("Credits:"), gbc);
-        gbc.gridx = 1; gbc.gridy = 2;
-        createCoursePanel.add(courseCreditsSpinner, gbc);
-
-        JButton createCourseButton = new JButton("Create Course");
-        createCourseButton.addActionListener(e -> onCreateCourse());
-        gbc.gridx = 1; gbc.gridy = 3;
-        createCoursePanel.add(createCourseButton, gbc);
-
-        // Push everything to top
-        gbc.gridx = 0; gbc.gridy = 4; gbc.weighty = 1.0;
-        createCoursePanel.add(new JPanel(), gbc);
-
+        setupCourseForm(createCoursePanel);
 
         // 2. Create Section Panel
         JPanel createSectionPanel = new JPanel(new GridBagLayout());
         createSectionPanel.setBorder(BorderFactory.createTitledBorder("Create New Section"));
-
-        // Reset GBC
-        gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1.0;
-
-        gbc.gridx = 0; gbc.gridy = 0; gbc.anchor = GridBagConstraints.LINE_END;
-        createSectionPanel.add(new JLabel("Course:"), gbc);
-        gbc.gridx = 1; gbc.gridy = 0; gbc.anchor = GridBagConstraints.LINE_START;
-        courseDropdown.setRenderer(new DefaultListCellRenderer() {
-            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value instanceof Course) setText(((Course) value).getCode() + " - " + ((Course) value).getTitle());
-                return this;
-            }
-        });
-        createSectionPanel.add(courseDropdown, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 1; createSectionPanel.add(new JLabel("Day/Time:"), gbc);
-        gbc.gridx = 1; gbc.gridy = 1; createSectionPanel.add(sectionDayTimeField, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 2; createSectionPanel.add(new JLabel("Room:"), gbc);
-        gbc.gridx = 1; gbc.gridy = 2; createSectionPanel.add(sectionRoomField, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 3; createSectionPanel.add(new JLabel("Capacity:"), gbc);
-        gbc.gridx = 1; gbc.gridy = 3; createSectionPanel.add(sectionCapacitySpinner, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 4; createSectionPanel.add(new JLabel("Term:"), gbc);
-        JPanel termPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        termPanel.add(semesterDropdown);
-        termPanel.add(Box.createHorizontalStrut(5));
-        termPanel.add(yearSpinner);
-        gbc.gridx = 1; gbc.gridy = 4; createSectionPanel.add(termPanel, gbc);
-
-        JButton createSectionButton = new JButton("Create Section");
-        createSectionButton.addActionListener(e -> onCreateSection());
-        gbc.gridx = 1; gbc.gridy = 5; gbc.anchor = GridBagConstraints.LINE_START;
-        createSectionPanel.add(createSectionButton, gbc);
-
-        // Spacer to align with left panel
-        gbc.gridx = 0; gbc.gridy = 6; gbc.weighty = 1.0;
-        createSectionPanel.add(new JPanel(), gbc);
+        setupSectionForm(createSectionPanel);
 
         // Add both to top container
         topContainer.add(createCoursePanel);
@@ -138,10 +75,124 @@ public class AdminCoursePanel extends JPanel {
         sectionsPanel = new AdminSectionsPanel(adminService);
 
         // --- BOTTOM: Settings & Backups ---
+        JPanel settingsPanel = createSettingsPanel();
+
+        // --- ASSEMBLE ---
+        add(topContainer, BorderLayout.NORTH);
+        add(sectionsPanel, BorderLayout.CENTER);
+        add(settingsPanel, BorderLayout.SOUTH);
+
+        loadCourseDropdown();
+        loadDeadlines();
+    }
+
+    private void setupCourseForm(JPanel panel) {
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+
+        gbc.gridx = 0; gbc.gridy = 0; gbc.anchor = GridBagConstraints.LINE_END;
+        panel.add(new JLabel("Code:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 0; gbc.anchor = GridBagConstraints.LINE_START;
+        panel.add(courseCodeField, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 1;
+        panel.add(new JLabel("Title:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 1;
+        panel.add(courseTitleField, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 2;
+        panel.add(new JLabel("Credits:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 2;
+        panel.add(courseCreditsSpinner, gbc);
+
+        JButton createCourseButton = new JButton("Create Course");
+        createCourseButton.addActionListener(e -> onCreateCourse());
+        gbc.gridx = 1; gbc.gridy = 3;
+        panel.add(createCourseButton, gbc);
+
+        // Spacer to push content up
+        gbc.gridx = 0; gbc.gridy = 4; gbc.weighty = 1.0;
+        panel.add(new JPanel(), gbc);
+    }
+
+    private void setupSectionForm(JPanel panel) {
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+
+        // Row 0: Course Dropdown
+        gbc.gridx = 0; gbc.gridy = 0; gbc.anchor = GridBagConstraints.LINE_END;
+        panel.add(new JLabel("Course:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 0; gbc.anchor = GridBagConstraints.LINE_START;
+        courseDropdown.setRenderer(new DefaultListCellRenderer() {
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof Course) setText(((Course) value).getCode() + " - " + ((Course) value).getTitle());
+                return this;
+            }
+        });
+        panel.add(courseDropdown, gbc);
+
+        // Row 1: Days and Time (Split Fields)
+        gbc.gridx = 0; gbc.gridy = 1; panel.add(new JLabel("Days:"), gbc);
+
+        // Create a sub-panel for Days and Time to fit them on one logical line or separate rows
+        // Here I'll put them on separate rows for clarity as requested
+        gbc.gridx = 1; gbc.gridy = 1; panel.add(sectionDaysField, gbc); // e.g. Mon/Wed
+
+        gbc.gridx = 0; gbc.gridy = 2; panel.add(new JLabel("Time:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 2; panel.add(sectionTimeField, gbc); // e.g. 10:00
+
+        // Row 3: Room
+        gbc.gridx = 0; gbc.gridy = 3; panel.add(new JLabel("Room:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 3; panel.add(sectionRoomField, gbc);
+
+        // Row 4: Capacity
+        gbc.gridx = 0; gbc.gridy = 4; panel.add(new JLabel("Capacity:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 4; panel.add(sectionCapacitySpinner, gbc);
+
+        // Row 5: Term
+        gbc.gridx = 0; gbc.gridy = 5; panel.add(new JLabel("Term:"), gbc);
+        JPanel termPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        termPanel.add(semesterDropdown);
+        termPanel.add(Box.createHorizontalStrut(5));
+        termPanel.add(yearSpinner);
+        gbc.gridx = 1; gbc.gridy = 5; panel.add(termPanel, gbc);
+
+        // Row 6: Section Name Checkbox
+        gbc.gridx = 0; gbc.gridy = 6;
+        panel.add(hasSectionNameCheck, gbc);
+
+        JPanel secNamePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        secNamePanel.add(new JLabel("Name (e.g. A):"));
+        secNamePanel.add(sectionNameField);
+        gbc.gridx = 1; gbc.gridy = 6;
+        panel.add(secNamePanel, gbc);
+
+        // Logic: Disable text field by default
+        sectionNameField.setEnabled(false);
+        hasSectionNameCheck.addActionListener(e -> sectionNameField.setEnabled(hasSectionNameCheck.isSelected()));
+
+        // Row 7: Button
+        JButton createSectionButton = new JButton("Create Section");
+        createSectionButton.addActionListener(e -> onCreateSection());
+        gbc.gridx = 1; gbc.gridy = 7; gbc.anchor = GridBagConstraints.LINE_START;
+        panel.add(createSectionButton, gbc);
+
+        // Spacer
+        gbc.gridx = 0; gbc.gridy = 8; gbc.weighty = 1.0;
+        panel.add(new JPanel(), gbc);
+    }
+
+    private JPanel createSettingsPanel() {
         JPanel settingsPanel = new JPanel(new GridBagLayout());
         settingsPanel.setBorder(BorderFactory.createTitledBorder("Application Settings & Backups"));
 
-        gbc = new GridBagConstraints(); gbc.insets = new Insets(5, 5, 5, 5);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
 
         gbc.gridx = 0; gbc.gridy = 0; settingsPanel.add(new JLabel("Add Deadline (YYYY-MM-DD):"), gbc);
         gbc.gridx = 1; gbc.gridy = 0; settingsPanel.add(addDeadlineField, gbc);
@@ -164,17 +215,11 @@ public class AdminCoursePanel extends JPanel {
         restoreBtn.addActionListener(e -> performRestore());
         gbc.gridx = 6; gbc.gridy = 0; settingsPanel.add(restoreBtn, gbc);
 
-        // --- ASSEMBLE ---
-        add(topContainer, BorderLayout.NORTH);
-        add(sectionsPanel, BorderLayout.CENTER); // This will expand to fill space
-        add(settingsPanel, BorderLayout.SOUTH);
-
-        loadCourseDropdown();
-        loadDeadlines();
+        return settingsPanel;
     }
 
-    // ... (Keep private helper methods: loadCourseDropdown, loadDeadlines, onCreateCourse, etc.) ...
-    // Copy them from your previous file as they haven't changed logic, just layout.
+    // --- LOGIC METHODS ---
+
     private void loadCourseDropdown() {
         try {
             List<Course> courseList = courseDAO.getAllCourses();
@@ -214,22 +259,48 @@ public class AdminCoursePanel extends JPanel {
     private void onCreateSection() {
         Course selectedCourse = (Course) courseDropdown.getSelectedItem();
         if (selectedCourse == null) { JOptionPane.showMessageDialog(this, "Select a course."); return; }
-        if (sectionDayTimeField.getText().isBlank() || sectionRoomField.getText().isBlank()) {
+
+        // Check both day and time fields
+        if (sectionDaysField.getText().isBlank() || sectionTimeField.getText().isBlank() || sectionRoomField.getText().isBlank()) {
             JOptionPane.showMessageDialog(this, "All fields are required.", "Validation Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
+
+        // --- Combine Days and Time ---
+        String days = sectionDaysField.getText().trim();
+        String time = sectionTimeField.getText().trim();
+        String combinedDayTime = days + " " + time;
+
+        // --- Section Name Logic ---
+        String secName = "N/A";
+        if (hasSectionNameCheck.isSelected()) {
+            secName = sectionNameField.getText().trim();
+            if (secName.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter a Section Name (e.g. A, B).");
+                return;
+            }
+        }
+
         try {
             String semester = (String) semesterDropdown.getSelectedItem();
             int year = (Integer) yearSpinner.getValue();
+
             adminService.createSection(
                     selectedCourse.getCourseId(),
-                    sectionDayTimeField.getText(),
+                    combinedDayTime, // Pass combined string
                     sectionRoomField.getText(),
                     (Integer) sectionCapacitySpinner.getValue(),
-                    semester, year
+                    semester, year,
+                    secName
             );
             JOptionPane.showMessageDialog(this, "Section created!");
-            sectionDayTimeField.setText(""); sectionRoomField.setText("");
+
+            // Reset Fields
+            sectionDaysField.setText(""); sectionTimeField.setText("");
+            sectionRoomField.setText("");
+            sectionNameField.setText(""); hasSectionNameCheck.setSelected(false);
+            sectionNameField.setEnabled(false);
+
             sectionsPanel.loadSections();
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Error creating section: " + e.getMessage());

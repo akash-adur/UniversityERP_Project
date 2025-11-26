@@ -10,11 +10,13 @@ public class EnrollmentDetails {
     private final String instructorName;
     private final String status;
     private final String finalGrade;
+    private final String sectionName;
+
     private final int credits;
     private final String semester;
     private final int year;
 
-    // --- NEW SCORE FIELDS ---
+    // Scores
     private final double quiz;
     private final double midterm;
     private final double finals;
@@ -22,7 +24,7 @@ public class EnrollmentDetails {
     public EnrollmentDetails(int enrollmentId, int sectionId, String courseCode, String courseTitle,
                              String dayTime, String room, String instructorName, String status,
                              String finalGrade, int credits, String semester, int year,
-                             double quiz, double midterm, double finals) { // Updated Constructor
+                             double quiz, double midterm, double finals, String sectionName) {
         this.enrollmentId = enrollmentId;
         this.sectionId = sectionId;
         this.courseCode = courseCode;
@@ -38,9 +40,11 @@ public class EnrollmentDetails {
         this.quiz = quiz;
         this.midterm = midterm;
         this.finals = finals;
+        // Fix nulls to "N/A"
+        this.sectionName = (sectionName == null || sectionName.isEmpty()) ? "N/A" : sectionName;
     }
 
-    // Getters
+    // --- Getters ---
     public int getEnrollmentId() { return enrollmentId; }
     public int getSectionId() { return sectionId; }
     public String getCourseCode() { return courseCode; }
@@ -53,10 +57,13 @@ public class EnrollmentDetails {
     public int getCredits() { return credits; }
     public String getSemester() { return semester; }
     public int getYear() { return year; }
-    public String getTerm() { return semester + " " + year; }
-
-    // New Getters for Scores
     public double getQuiz() { return quiz; }
     public double getMidterm() { return midterm; }
     public double getFinals() { return finals; }
+    public String getSectionName() { return sectionName; }
+
+    // --- THIS IS THE MISSING METHOD CAUSING YOUR ERROR ---
+    public String getTerm() {
+        return semester + " " + year;
+    }
 }

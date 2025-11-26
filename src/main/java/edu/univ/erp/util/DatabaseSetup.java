@@ -10,7 +10,7 @@ public class DatabaseSetup {
     // !!! CONFIGURE THESE !!!
     private static final String DB_URL = "jdbc:mysql://localhost:3306/";
     private static final String DB_USER = "root";
-    private static final String DB_PASSWORD = "akash6170"; // <--- YOUR PASSWORD HERE
+    private static final String DB_PASSWORD = "prakhar7896";
 
     public static void main(String[] args) {
         System.out.println("... Starting Database Setup ...");
@@ -24,26 +24,26 @@ public class DatabaseSetup {
             stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS AuthDB");
             stmt.executeUpdate("USE AuthDB");
 
+            // UPDATED: Added failed_attempts column
             String createAuthTable = "CREATE TABLE IF NOT EXISTS users_auth (" +
                     "user_id INT PRIMARY KEY AUTO_INCREMENT, " +
                     "username VARCHAR(50) NOT NULL UNIQUE, " +
                     "role VARCHAR(20) NOT NULL, " +
                     "password_hash VARCHAR(100) NOT NULL, " +
                     "status VARCHAR(20) DEFAULT 'active', " +
+                    "failed_attempts INT DEFAULT 0, " +
                     "last_login TIMESTAMP NULL" +
                     ")";
             stmt.executeUpdate(createAuthTable);
 
-            String commonPass = "password123";
-            // Ideally use PasswordHasher.hashPassword(commonPass) here if available
-            // For simplicity in this standalone script, using placeholder hashes or the hasher if linked.
             String defaultHash = "$2a$10$rRiAi4DLdyb9.9wpMWaMze/NLsoZeNtJ5KPI.WajjuObbOxKV/KOW";
 
-            String insertUsers = "INSERT IGNORE INTO users_auth (user_id, username, role, password_hash, status) VALUES " +
-                    "(1, 'admin1', 'Admin',      '" + defaultHash + "', 'active'), " +
-                    "(2, 'inst1',  'Instructor', '" + defaultHash + "', 'active'), " +
-                    "(3, 'stu1',   'Student',    '" + defaultHash + "', 'active'), " +
-                    "(4, 'stu2',   'Student',    '" + defaultHash + "', 'active')";
+            // Added failed_attempts to INSERT (defaults to 0 anyway, but good for clarity if needed)
+            String insertUsers = "INSERT IGNORE INTO users_auth (user_id, username, role, password_hash, status, failed_attempts) VALUES " +
+                    "(1, 'admin1', 'Admin',      '" + defaultHash + "', 'active', 0), " +
+                    "(2, 'inst1',  'Instructor', '" + defaultHash + "', 'active', 0), " +
+                    "(3, 'stu1',   'Student',    '" + defaultHash + "', 'active', 0), " +
+                    "(4, 'stu2',   'Student',    '" + defaultHash + "', 'active', 0)";
             stmt.executeUpdate(insertUsers);
 
             // 2. SETUP ERPDB
@@ -82,6 +82,7 @@ public class DatabaseSetup {
                     "capacity INT NOT NULL, " +
                     "semester VARCHAR(20) NOT NULL, " +
                     "year INT NOT NULL, " +
+                    "section_name VARCHAR(10) DEFAULT 'N/A', " +
                     "FOREIGN KEY (course_id) REFERENCES courses(course_id), " +
                     "FOREIGN KEY (instructor_id) REFERENCES instructors(user_id))");
 
@@ -102,7 +103,6 @@ public class DatabaseSetup {
             stmt.executeUpdate("INSERT IGNORE INTO instructors (user_id, department, title) VALUES (2, 'Computer Science', 'Professor')");
             stmt.executeUpdate("INSERT IGNORE INTO students (user_id, roll_no, program, year) VALUES (3, 'S101', 'B.Tech CS', 2), (4, 'S102', 'B.Tech ECE', 2)");
 
-            // Settings - Added add_deadline
             stmt.executeUpdate("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('maintenance_mode', 'false')");
             stmt.executeUpdate("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('drop_deadline', '2025-11-30')");
             stmt.executeUpdate("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('add_deadline', '2025-08-30')");

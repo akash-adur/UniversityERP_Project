@@ -1,223 +1,141 @@
 package edu.univ.erp.ui.student;
 
-import edu.univ.erp.data.CourseDAO;
 import edu.univ.erp.domain.Course;
 import edu.univ.erp.domain.Section;
 import edu.univ.erp.domain.UserSession;
 import edu.univ.erp.service.StudentService;
+import edu.univ.erp.data.CourseDAO;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.SQLException;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public class StudentCatalogPanel extends JPanel {
 
     private final UserSession session;
-    private final CourseDAO courseDAO;
     private final StudentService studentService;
+    private final CourseDAO courseDAO;
 
     private JTable courseTable;
-    private DefaultTableModel courseTableModel;
-    private JTable sectionsTable;
-    private DefaultTableModel sectionsTableModel;
-    private JComboBox<String> termFilter;
-    private JLabel deadlineLabel;
-
-    private List<Course> courseList = new ArrayList<>();
-    private List<Section> sectionsList = new ArrayList<>();
+    private DefaultTableModel courseModel;
+    private JTable sectionTable;
+    private DefaultTableModel sectionModel;
+    private JButton registerButton;
 
     public StudentCatalogPanel(UserSession session, StudentService studentService) {
         this.session = session;
-        this.courseDAO = new CourseDAO();
         this.studentService = studentService;
+        this.courseDAO = new CourseDAO();
 
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // --- Top Panel: Filter & Deadline ---
-        JPanel topControlPanel = new JPanel(new BorderLayout());
-
-        JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        filterPanel.add(new JLabel("Filter by Term:"));
-        termFilter = new JComboBox<>(new String[]{"All", "Monsoon", "Winter", "Summer"});
-        termFilter.addActionListener(e -> loadCourseData());
-        filterPanel.add(termFilter);
-        topControlPanel.add(filterPanel, BorderLayout.WEST);
-
-        deadlineLabel = new JLabel("Loading deadline...");
-        deadlineLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        deadlineLabel.setForeground(new Color(200, 50, 50));
-        topControlPanel.add(deadlineLabel, BorderLayout.EAST);
-
-        add(topControlPanel, BorderLayout.NORTH);
-
-        // --- Course Table (Top) ---
-        // Added "Terms" column
-        String[] courseColumnNames = {"Course Code", "Course Title", "Credits", "Terms"};
-        courseTableModel = new DefaultTableModel(courseColumnNames, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) { return false; }
+        // --- Top: Course Table ---
+        String[] courseCols = {"ID", "Code", "Title", "Credits"};
+        courseModel = new DefaultTableModel(courseCols, 0) {
+            @Override public boolean isCellEditable(int row, int col) { return false; }
         };
-        courseTable = new JTable(courseTableModel);
-        courseTable.getTableHeader().setReorderingAllowed(false);
-        courseTable.getTableHeader().setResizingAllowed(false);
-
-        // Center Align Course Table
-        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
-        centerRenderer.setHorizontalAlignment(JLabel.CENTER);
-        courseTable.setDefaultRenderer(Object.class, centerRenderer);
-
-        JScrollPane courseScrollPane = new JScrollPane(courseTable);
-        courseScrollPane.setBorder(BorderFactory.createTitledBorder("Step 1: Select a Course"));
-
-        // --- Sections Table (Bottom) ---
-        String[] sectionColumnNames = {"Term", "Section ID", "Instructor", "Day/Time", "Room", "Capacity"};
-        sectionsTableModel = new DefaultTableModel(sectionColumnNames, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) { return false; }
-        };
-        sectionsTable = new JTable(sectionsTableModel);
-        sectionsTable.getTableHeader().setReorderingAllowed(false);
-        sectionsTable.getTableHeader().setResizingAllowed(false);
-
-        // Center Align Sections Table
-        sectionsTable.setDefaultRenderer(Object.class, centerRenderer);
-
-        JScrollPane sectionScrollPane = new JScrollPane(sectionsTable);
-        sectionScrollPane.setBorder(BorderFactory.createTitledBorder("Step 2: Select a Section"));
-
-        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, courseScrollPane, sectionScrollPane);
-        splitPane.setResizeWeight(0.5);
-        splitPane.setEnabled(false);
-
-        add(splitPane, BorderLayout.CENTER);
-
-        JButton registerButton = new JButton("Register for Selected Section");
-        add(registerButton, BorderLayout.SOUTH);
-
-        loadDeadline();
-        loadCourseData();
+        courseTable = new JTable(courseModel);
+        styleTable(courseTable);
 
         courseTable.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                int selectedRow = courseTable.getSelectedRow();
-                if (selectedRow != -1) {
-                    // Get code from table to find the actual course object
-                    String code = (String) courseTableModel.getValueAt(selectedRow, 0);
-                    Course selectedCourse = courseList.stream()
-                            .filter(c -> c.getCode().equals(code))
-                            .findFirst()
-                            .orElse(null);
-
-                    if (selectedCourse != null) {
-                        loadSections(selectedCourse.getCourseId());
-                    }
-                }
-            }
+            if (!e.getValueIsAdjusting()) loadSectionsForSelectedCourse();
         });
 
-        registerButton.addActionListener(e -> onRegister());
+        // --- Bottom: Section Table (UPDATED COLUMNS) ---
+        String[] sectionCols = {"Section ID", "Sec", "Days", "Time", "Room", "Capacity", "Instructor"};
+        sectionModel = new DefaultTableModel(sectionCols, 0) {
+            @Override public boolean isCellEditable(int row, int col) { return false; }
+        };
+        sectionTable = new JTable(sectionModel);
+        styleTable(sectionTable);
+
+        // Resize "Sec" col
+        sectionTable.getColumnModel().getColumn(1).setPreferredWidth(40);
+        sectionTable.getColumnModel().getColumn(1).setMaxWidth(60);
+
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+                new JScrollPane(courseTable), new JScrollPane(sectionTable));
+        splitPane.setDividerLocation(250);
+        add(splitPane, BorderLayout.CENTER);
+
+        registerButton = new JButton("Register for Selected Section");
+        registerButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        registerButton.setBackground(new Color(0, 120, 215));
+        registerButton.setForeground(Color.WHITE);
+        registerButton.setOpaque(true);
+        registerButton.setBorderPainted(false);
+        registerButton.addActionListener(e -> registerAction());
+
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        btnPanel.add(registerButton);
+        add(btnPanel, BorderLayout.SOUTH);
+
+        loadCourses();
     }
 
-    private void loadDeadline() {
-        try {
-            LocalDate deadline = studentService.getAddDeadline();
-            deadlineLabel.setText("⚠️ Last day to add: " + deadline);
-        } catch (Exception e) {
-            deadlineLabel.setText("Could not load deadline.");
-        }
+    private void styleTable(JTable table) {
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(JLabel.CENTER);
+        table.setDefaultRenderer(Object.class, centerRenderer);
+        ((DefaultTableCellRenderer)table.getTableHeader().getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
+        table.setRowHeight(25);
     }
 
-    private void loadCourseData() {
+    private void loadCourses() {
         try {
-            List<Course> allCourses = courseDAO.getAllCourses();
-            courseList = allCourses; // Keep reference
-            courseTableModel.setRowCount(0);
-
-            String selectedTerm = (String) termFilter.getSelectedItem();
-
-            for (Course course : allCourses) {
-                // Determine available terms for this course
-                List<Section> sections = studentService.getSectionsForCourse(course.getCourseId());
-                Set<String> distinctTerms = new HashSet<>();
-                for(Section s : sections) {
-                    distinctTerms.add(s.getSemester());
-                }
-
-                // Filter Logic
-                boolean match = "All".equals(selectedTerm);
-                if (!match) {
-                    for (String t : distinctTerms) {
-                        if (t.equalsIgnoreCase(selectedTerm)) {
-                            match = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (match) {
-                    String termString = String.join(", ", distinctTerms);
-                    courseTableModel.addRow(new Object[]{
-                            course.getCode(),
-                            course.getTitle(),
-                            course.getCredits(),
-                            termString // Show Terms
-                    });
-                }
+            List<Course> courses = courseDAO.getAllCourses();
+            courseModel.setRowCount(0);
+            for (Course c : courses) {
+                courseModel.addRow(new Object[]{c.getCourseId(), c.getCode(), c.getTitle(), c.getCredits()});
             }
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Error loading courses: " + e.getMessage());
-        }
+        } catch (SQLException e) { e.printStackTrace(); }
     }
 
-    private void loadSections(int courseId) {
+    private void loadSectionsForSelectedCourse() {
+        int row = courseTable.getSelectedRow();
+        if (row == -1) return;
+        int courseId = (Integer) courseModel.getValueAt(row, 0);
+
         try {
-            sectionsList = studentService.getSectionsForCourse(courseId);
-            sectionsTableModel.setRowCount(0);
-
-            // Also respect the filter in the bottom view
-            String selectedTerm = (String) termFilter.getSelectedItem();
-
-            for (Section section : sectionsList) {
-                if ("All".equals(selectedTerm) || section.getSemester().equalsIgnoreCase(selectedTerm)) {
-                    sectionsTableModel.addRow(new Object[]{
-                            section.getTerm(),
-                            section.getSectionId(),
-                            section.getInstructorName(),
-                            section.getDayTime(),
-                            section.getRoom(),
-                            section.getCapacity()
-                    });
+            List<Section> sections = studentService.getSectionsForCourse(courseId);
+            sectionModel.setRowCount(0);
+            for (Section s : sections) {
+                String dayTime = s.getDayTime();
+                String days = dayTime;
+                String time = "";
+                if (dayTime != null && dayTime.contains(" ")) {
+                    String[] parts = dayTime.split(" ", 2);
+                    days = parts[0];
+                    time = parts[1];
                 }
+
+                sectionModel.addRow(new Object[]{
+                        s.getSectionId(),
+                        s.getSectionName(),
+                        days,
+                        time,
+                        s.getRoom(),
+                        s.getCapacity(),
+                        s.getInstructorName()
+                });
             }
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Error loading sections: " + e.getMessage());
-        }
+        } catch (SQLException e) { e.printStackTrace(); }
     }
 
-    private void onRegister() {
-        int selectedRow = sectionsTable.getSelectedRow();
-        if (selectedRow == -1) {
-            JOptionPane.showMessageDialog(this, "Please select a section to register for.", "No Section Selected", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        // Map row index to list index isn't direct due to filtering, so we need to find the section ID
-        int sectionId = (Integer) sectionsTableModel.getValueAt(selectedRow, 1);
+    private void registerAction() {
+        int row = sectionTable.getSelectedRow();
+        if (row == -1) { JOptionPane.showMessageDialog(this, "Select a section."); return; }
+        int sectionId = (Integer) sectionModel.getValueAt(row, 0);
 
         try {
             studentService.registerForSection(session.getUserId(), sectionId);
-            JOptionPane.showMessageDialog(this, "Registration successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Registration failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Successfully registered!");
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
         }
     }
 }

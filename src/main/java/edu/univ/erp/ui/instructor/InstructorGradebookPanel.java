@@ -25,7 +25,6 @@ public class InstructorGradebookPanel extends JPanel {
 
     // Filters
     private JComboBox<String> termFilter;
-    // REPLACED TEXT FIELD WITH COMBO BOX
     private JComboBox<Section> sectionSearchDropdown;
 
     private JTable gradeTable;
@@ -61,7 +60,6 @@ public class InstructorGradebookPanel extends JPanel {
 
         filterPanel.add(new JLabel("Search/Select Course:"));
 
-        // --- NEW SEARCHABLE DROPDOWN LOGIC ---
         sectionSearchDropdown = new JComboBox<>();
         sectionSearchDropdown.setPreferredSize(new Dimension(300, 25));
         sectionSearchDropdown.setEditable(true);
@@ -109,11 +107,9 @@ public class InstructorGradebookPanel extends JPanel {
         gradeTable.setRowHeight(25);
         gradeTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
 
-        // Lockdown
         gradeTable.getTableHeader().setReorderingAllowed(false);
         gradeTable.getTableHeader().setResizingAllowed(false);
 
-        // Sorter (for local table sorting)
         sorter = new TableRowSorter<>(tableModel);
         gradeTable.setRowSorter(sorter);
 
@@ -153,7 +149,6 @@ public class InstructorGradebookPanel extends JPanel {
     }
 
     private void resetAndFilter() {
-        // Triggered when Term changes. Reset search and filter by term.
         JTextField editor = (JTextField) sectionSearchDropdown.getEditor().getEditorComponent();
         editor.setText("");
         filterSections("");
@@ -195,7 +190,6 @@ public class InstructorGradebookPanel extends JPanel {
     }
 
     private void loadGradebook(ActionEvent e) {
-        // Get selection from the NEW dropdown
         Object item = sectionSearchDropdown.getSelectedItem();
         if (item == null || !(item instanceof Section)) {
             JOptionPane.showMessageDialog(this, "Please select a valid course.");
@@ -221,6 +215,7 @@ public class InstructorGradebookPanel extends JPanel {
             int count = tableModel.getRowCount();
             if (count == 0) return;
 
+            // Note: These are defaults. In a real app, we'd fetch course-specific configs from DB.
             double wQ = 20, wM = 30, wF = 50;
             double mQ = 20, mM = 50, mF = 100;
 
@@ -235,7 +230,16 @@ public class InstructorGradebookPanel extends JPanel {
                 double pctF = (fin / mF) * wF;
                 double total = pctQ + pctM + pctF;
 
-                String letter = total >= 90 ? "A" : total >= 80 ? "B" : total >= 70 ? "C" : total >= 60 ? "D" : "F";
+                // --- UPDATED LOGIC: Full Scale (A, A-, B, B-...) ---
+                String letter;
+                if (total >= 90) letter = "A";
+                else if (total >= 85) letter = "A-";
+                else if (total >= 80) letter = "B";
+                else if (total >= 75) letter = "B-";
+                else if (total >= 70) letter = "C";
+                else if (total >= 65) letter = "C-";
+                else if (total >= 60) letter = "D";
+                else letter = "F";
 
                 instructorService.updateGrades(enrollId, quiz, mid, fin, letter);
                 tableModel.setValueAt(letter, i, 6);

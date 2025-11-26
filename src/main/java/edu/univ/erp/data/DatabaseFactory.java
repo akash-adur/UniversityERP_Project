@@ -18,7 +18,7 @@ public class DatabaseFactory {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl("jdbc:mysql://localhost:3306/AuthDB");
         config.setUsername("root");
-        config.setPassword("akash6170"); // REPLACE THIS
+        config.setPassword("prakhar7896"); // REPLACE THIS
         config.setMaximumPoolSize(5);
         authDataSource = new HikariDataSource(config);
     }
@@ -27,7 +27,7 @@ public class DatabaseFactory {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl("jdbc:mysql://localhost:3306/ERPDB");
         config.setUsername("root");
-        config.setPassword("akash6170"); // REPLACE THIS
+        config.setPassword("prakhar7896"); // REPLACE THIS
         config.setMaximumPoolSize(10);
         erpDataSource = new HikariDataSource(config);
     }

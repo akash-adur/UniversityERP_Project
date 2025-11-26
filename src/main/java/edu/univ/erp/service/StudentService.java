@@ -30,7 +30,8 @@ public class StudentService {
 
     public List<Section> getSectionsForCourse(int courseId) throws SQLException {
         List<Section> sections = new ArrayList<>();
-        String sql = "SELECT s.section_id, s.day_time, s.room, s.capacity, s.semester, s.year, " +
+        // FIX: Added s.section_name to query
+        String sql = "SELECT s.section_id, s.day_time, s.room, s.capacity, s.semester, s.year, s.section_name, " +
                 "COALESCE(u.username, 'TBD') as instructorName " +
                 "FROM ERPDB.sections s " +
                 "LEFT JOIN ERPDB.instructors i ON s.instructor_id = i.user_id " +
@@ -43,6 +44,7 @@ public class StudentService {
             stmt.setInt(1, courseId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
+                    // FIX: Passed section_name (8th argument)
                     Section section = new Section(
                             rs.getInt("section_id"),
                             courseId,
@@ -50,7 +52,8 @@ public class StudentService {
                             rs.getString("room"),
                             rs.getInt("capacity"),
                             rs.getString("semester"),
-                            rs.getInt("year")
+                            rs.getInt("year"),
+                            rs.getString("section_name") // <--- NEW ARGUMENT
                     );
                     section.setInstructorName(rs.getString("instructorName"));
                     sections.add(section);
@@ -164,12 +167,12 @@ public class StudentService {
         }
     }
 
-    // --- UPDATED TO FETCH SCORES ---
     public List<EnrollmentDetails> getEnrollmentsForStudent(int studentId) throws SQLException {
         List<EnrollmentDetails> details = new ArrayList<>();
+        // FIX: Added s.section_name to query
         String sql = "SELECT e.enrollment_id, e.status, e.final_grade, " +
-                "e.score_quiz, e.score_midterm, e.score_final, " + // Fetch Scores
-                "s.section_id, s.day_time, s.room, s.semester, s.year, " +
+                "e.score_quiz, e.score_midterm, e.score_final, " +
+                "s.section_id, s.day_time, s.room, s.semester, s.year, s.section_name, " + // <--- Added here
                 "c.code, c.title, c.credits, " +
                 "COALESCE(u.username, 'TBD') as instructorName " +
                 "FROM ERPDB.enrollments e " +
@@ -200,9 +203,10 @@ public class StudentService {
                             rs.getInt("credits"),
                             rs.getString("semester"),
                             rs.getInt("year"),
-                            rs.getDouble("score_quiz"),    // Pass score
-                            rs.getDouble("score_midterm"), // Pass score
-                            rs.getDouble("score_final")    // Pass score
+                            rs.getDouble("score_quiz"),
+                            rs.getDouble("score_midterm"),
+                            rs.getDouble("score_final"),
+                            rs.getString("section_name") // <--- Pass new argument
                     ));
                 }
             }

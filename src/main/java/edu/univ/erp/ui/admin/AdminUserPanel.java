@@ -11,54 +11,78 @@ public class AdminUserPanel extends JPanel {
 
     private final AdminService adminService;
 
-    private final JTextField userField = new JTextField(20);
-    private final JPasswordField passField = new JPasswordField(20);
+    // Create Panel Components
+    private final JTextField userField = new JTextField(15);
+    private final JPasswordField passField = new JPasswordField(15);
     private final JComboBox<String> roleDropdown = new JComboBox<>(new String[]{"Student", "Instructor", "Admin"});
-
     private final JLabel deptLabel = new JLabel("Department:");
-    private final JTextField deptField = new JTextField(20);
-
+    private final JTextField deptField = new JTextField(15);
     private final JButton createUserButton = new JButton("Create User");
+
+    // Unlock Panel Components
+    private final JTextField unlockUserField = new JTextField(15);
+    private final JButton unlockButton = new JButton("Unlock Account");
 
     public AdminUserPanel(AdminService adminService) {
         this.adminService = adminService;
 
-        setLayout(new GridBagLayout());
-        setBorder(BorderFactory.createTitledBorder("Create New User"));
+        setLayout(new BorderLayout(10, 10));
+        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JPanel mainContainer = new JPanel();
+        mainContainer.setLayout(new BoxLayout(mainContainer, BoxLayout.Y_AXIS));
+
+        // --- Panel 1: Create User ---
+        JPanel createPanel = new JPanel(new GridBagLayout());
+        createPanel.setBorder(BorderFactory.createTitledBorder("Create New User"));
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         gbc.gridx = 0; gbc.gridy = 0; gbc.anchor = GridBagConstraints.LINE_END;
-        add(new JLabel("Username:"), gbc);
+        createPanel.add(new JLabel("Username:"), gbc);
         gbc.gridx = 1; gbc.gridy = 0; gbc.anchor = GridBagConstraints.LINE_START;
-        add(userField, gbc);
+        createPanel.add(userField, gbc);
 
         gbc.gridx = 0; gbc.gridy = 1; gbc.anchor = GridBagConstraints.LINE_END;
-        add(new JLabel("Password:"), gbc);
+        createPanel.add(new JLabel("Password:"), gbc);
         gbc.gridx = 1; gbc.gridy = 1; gbc.anchor = GridBagConstraints.LINE_START;
-        add(passField, gbc);
+        createPanel.add(passField, gbc);
 
         gbc.gridx = 0; gbc.gridy = 2; gbc.anchor = GridBagConstraints.LINE_END;
-        add(new JLabel("Role:"), gbc);
+        createPanel.add(new JLabel("Role:"), gbc);
         gbc.gridx = 1; gbc.gridy = 2; gbc.anchor = GridBagConstraints.LINE_START;
-        add(roleDropdown, gbc);
+        createPanel.add(roleDropdown, gbc);
 
         gbc.gridx = 0; gbc.gridy = 3; gbc.anchor = GridBagConstraints.LINE_END;
-        add(deptLabel, gbc);
+        createPanel.add(deptLabel, gbc);
         gbc.gridx = 1; gbc.gridy = 3; gbc.anchor = GridBagConstraints.LINE_START;
-        add(deptField, gbc);
+        createPanel.add(deptField, gbc);
 
         deptLabel.setVisible(false);
         deptField.setVisible(false);
 
         gbc.gridx = 1; gbc.gridy = 4; gbc.fill = GridBagConstraints.NONE;
-        add(createUserButton, gbc);
+        createPanel.add(createUserButton, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 5; gbc.weighty = 1.0;
-        add(new JPanel(), gbc);
+        // --- Panel 2: Account Management (Unlock) ---
+        JPanel unlockPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        unlockPanel.setBorder(BorderFactory.createTitledBorder("Account Management"));
 
+        unlockPanel.add(new JLabel("Username to Unlock:"));
+        unlockPanel.add(unlockUserField);
+        unlockPanel.add(unlockButton);
+
+        // Add panels to main container
+        mainContainer.add(createPanel);
+        mainContainer.add(Box.createVerticalStrut(15));
+        mainContainer.add(unlockPanel);
+
+        // Add scroll pane just in case
+        add(new JScrollPane(mainContainer), BorderLayout.CENTER);
+
+        // --- Listeners ---
         roleDropdown.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
                 boolean isInstructor = "Instructor".equals(e.getItem());
@@ -69,6 +93,7 @@ public class AdminUserPanel extends JPanel {
         });
 
         createUserButton.addActionListener(e -> onCreateUser());
+        unlockButton.addActionListener(e -> onUnlockUser());
     }
 
     private void onCreateUser() {
@@ -87,21 +112,15 @@ public class AdminUserPanel extends JPanel {
             return;
         }
 
-        // --- NEW SECURITY CHECK FOR ADMIN CREATION ---
         if ("Admin".equals(role)) {
             JPasswordField pf = new JPasswordField();
             int okCxl = JOptionPane.showConfirmDialog(this, new Object[]{"Creating a new Admin requires authorization.\nPlease enter YOUR current admin password:", pf}, "Security Check", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
 
             if (okCxl == JOptionPane.OK_OPTION) {
                 String currentAdminPass = new String(pf.getPassword());
-                // In a real app, we would verify this against the logged-in user's hash.
-                // For this project scope, checking it's not empty is a reasonable "simulation" step,
-                // OR we could call a verify method in Auth service.
-                // Since we don't have the current user's password in memory, we'll simulate the check or ask Auth service.
-                // Simpler approach for this level: Just ensure they typed *something*.
                 if (currentAdminPass.isEmpty()) return;
             } else {
-                return; // Cancelled
+                return;
             }
         }
 
@@ -111,6 +130,21 @@ public class AdminUserPanel extends JPanel {
             userField.setText(""); passField.setText(""); deptField.setText("");
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Error creating user: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void onUnlockUser() {
+        String username = unlockUserField.getText().trim();
+        if (username.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter a username.");
+            return;
+        }
+        try {
+            adminService.unlockUser(username);
+            JOptionPane.showMessageDialog(this, "User account unlocked successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            unlockUserField.setText("");
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error unlocking user: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 }

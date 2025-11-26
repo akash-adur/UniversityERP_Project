@@ -54,9 +54,6 @@ public class MainFrame extends JFrame {
         JLabel statusBar = new JLabel("Logged in as: " + session.getUsername() + " (" + session.getRole() + ")");
         statusBar.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         add(statusBar, BorderLayout.SOUTH);
-
-        // --- NOTE: Auto-backup on close has been REMOVED ---
-        // This prevents overwriting your "Good" backup with accidental changes.
     }
 
     private void addMaintenanceBanner(JPanel container) {
@@ -94,7 +91,8 @@ public class MainFrame extends JFrame {
 
     private JTabbedPane createMainTabs() {
         JTabbedPane tabbedPane = new JTabbedPane();
-        tabbedPane.addTab("Home", new JPanel());
+
+        // REMOVED: tabbedPane.addTab("Home", new JPanel());
 
         if (session.isStudent()) {
             tabbedPane.addTab("Course Catalog", new StudentCatalogPanel(session, studentService));
@@ -128,7 +126,6 @@ public class MainFrame extends JFrame {
                 JOptionPane.YES_NO_OPTION);
 
         if (choice == JOptionPane.YES_OPTION) {
-            // No backup on logout anymore
             dispose();
             SwingUtilities.invokeLater(() -> {
                 new LoginFrame().setVisible(true);

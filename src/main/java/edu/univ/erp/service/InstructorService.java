@@ -27,7 +27,8 @@ public class InstructorService {
 
     public List<Section> getSectionsForInstructor(int instructorId) throws SQLException {
         List<Section> sections = new ArrayList<>();
-        String sql = "SELECT s.section_id, s.course_id, s.day_time, s.room, s.capacity, s.semester, s.year, " +
+        // FIX: Added s.section_name to the query
+        String sql = "SELECT s.section_id, s.course_id, s.day_time, s.room, s.capacity, s.semester, s.year, s.section_name, " +
                 "c.code as courseCode, c.title as courseTitle " +
                 "FROM ERPDB.sections s " +
                 "JOIN ERPDB.courses c ON s.course_id = c.course_id " +
@@ -39,6 +40,7 @@ public class InstructorService {
             stmt.setInt(1, instructorId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
+                    // FIX: Passed section_name (8th argument) to constructor
                     Section s = new Section(
                             rs.getInt("section_id"),
                             rs.getInt("course_id"),
@@ -46,7 +48,8 @@ public class InstructorService {
                             rs.getString("room"),
                             rs.getInt("capacity"),
                             rs.getString("semester"),
-                            rs.getInt("year")
+                            rs.getInt("year"),
+                            rs.getString("section_name") // <--- NEW ARGUMENT
                     );
                     s.setCourseCode(rs.getString("courseCode") + " - " + rs.getString("courseTitle"));
                     sections.add(s);
