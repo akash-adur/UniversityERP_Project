@@ -5,11 +5,13 @@ import edu.univ.erp.domain.UserSession;
 import edu.univ.erp.service.StudentService;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class StudentRegistrationsPanel extends JPanel {
@@ -21,7 +23,6 @@ public class StudentRegistrationsPanel extends JPanel {
     private DefaultTableModel tableModel;
     private List<EnrollmentDetails> enrollmentList = new ArrayList<>();
 
-    // --- NEW LABEL ---
     private JLabel dropDeadlineLabel;
 
     public StudentRegistrationsPanel(UserSession session, StudentService studentService) {
@@ -31,8 +32,7 @@ public class StudentRegistrationsPanel extends JPanel {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // --- Table Setup ---
-        String[] columnNames = {"Course Code", "Title", "Instructor", "Day/Time", "Room", "Status"};
+        String[] columnNames = {"Term", "Course Code", "Title", "Instructor", "Day/Time", "Room", "Status"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -40,31 +40,34 @@ public class StudentRegistrationsPanel extends JPanel {
             }
         };
         enrollmentsTable = new JTable(tableModel);
+        enrollmentsTable.getTableHeader().setReorderingAllowed(false);
+        enrollmentsTable.getTableHeader().setResizingAllowed(false);
+
+        // --- CENTER ALIGNMENT FIX ---
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(JLabel.CENTER);
+        enrollmentsTable.setDefaultRenderer(Object.class, centerRenderer);
+        // ----------------------------
+
         JScrollPane scrollPane = new JScrollPane(enrollmentsTable);
         add(scrollPane, BorderLayout.CENTER);
 
-        // --- UPDATED BOTTOM PANEL ---
         JPanel bottomPanel = new JPanel(new BorderLayout(10, 5));
-
-        // --- Drop Deadline Label ---
         dropDeadlineLabel = new JLabel("Loading deadline...");
         dropDeadlineLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
         dropDeadlineLabel.setForeground(Color.GRAY);
         bottomPanel.add(dropDeadlineLabel, BorderLayout.WEST);
 
-        // --- Drop Button ---
         JButton dropButton = new JButton("Drop Selected Section");
         bottomPanel.add(dropButton, BorderLayout.EAST);
 
         add(bottomPanel, BorderLayout.SOUTH);
 
-        // --- Action Listeners ---
         dropButton.addActionListener(e -> onDropSection());
 
-        // This listener refreshes the data when the tab is clicked
         addAncestorListener(new javax.swing.event.AncestorListener() {
             public void ancestorAdded(javax.swing.event.AncestorEvent e) {
-                loadEnrollments(); // Refresh when tab is shown
+                loadEnrollments();
                 loadDeadline();
             }
             public void ancestorRemoved(javax.swing.event.AncestorEvent e) {}
@@ -87,9 +90,18 @@ public class StudentRegistrationsPanel extends JPanel {
     public void loadEnrollments() {
         try {
             enrollmentList = studentService.getEnrollmentsForStudent(session.getUserId());
+
+            Collections.sort(enrollmentList, (e1, e2) -> {
+                if (e1.getYear() != e2.getYear()) {
+                    return Integer.compare(e2.getYear(), e1.getYear());
+                }
+                return Integer.compare(getSemWeight(e2.getSemester()), getSemWeight(e1.getSemester()));
+            });
+
             tableModel.setRowCount(0);
             for (EnrollmentDetails details : enrollmentList) {
                 tableModel.addRow(new Object[]{
+                        details.getTerm(),
                         details.getCourseCode(),
                         details.getCourseTitle(),
                         details.getInstructorName(),
@@ -101,6 +113,13 @@ public class StudentRegistrationsPanel extends JPanel {
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Error loading enrollments: " + e.getMessage());
         }
+    }
+
+    private int getSemWeight(String sem) {
+        if ("Monsoon".equalsIgnoreCase(sem)) return 3;
+        if ("Summer".equalsIgnoreCase(sem)) return 2;
+        if ("Winter".equalsIgnoreCase(sem)) return 1;
+        return 0;
     }
 
     private void onDropSection() {
@@ -118,12 +137,10 @@ public class StudentRegistrationsPanel extends JPanel {
 
         if (choice == JOptionPane.YES_OPTION) {
             try {
-                // The check is now inside this method!
                 studentService.dropSection(selectedEnrollment.getEnrollmentId());
                 JOptionPane.showMessageDialog(this, "Section dropped successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-                loadEnrollments(); // Refresh the table
+                loadEnrollments();
             } catch (Exception e) {
-                // This will now catch "Deadline has passed" errors
                 JOptionPane.showMessageDialog(this, e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         }

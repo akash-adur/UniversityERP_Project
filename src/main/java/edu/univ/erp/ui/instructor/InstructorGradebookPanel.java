@@ -9,116 +9,199 @@ import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.io.*;
+import java.util.ArrayList;
 import java.util.List;
 
 public class InstructorGradebookPanel extends JPanel {
 
     private final UserSession session;
     private final InstructorService instructorService;
-    private JComboBox<Section> sectionDropdown;
+
+    // Filters
+    private JComboBox<String> termFilter;
+    // REPLACED TEXT FIELD WITH COMBO BOX
+    private JComboBox<Section> sectionSearchDropdown;
+
     private JTable gradeTable;
     private DefaultTableModel tableModel;
-    private JLabel statsLabel;
+    private TableRowSorter<DefaultTableModel> sorter;
 
-    // To hold the currently loaded list
+    private JButton btnStats;
     private List<GradeRecord> currentRecords;
+    private List<Section> allSections;
+    private boolean isAdjusting = false;
 
     public InstructorGradebookPanel(UserSession session) {
         this.session = session;
         this.instructorService = new InstructorService();
 
         setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
-        // --- Top: Section Selector & CSV Controls ---
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        // --- NORTH PANEL: Filters ---
+        JPanel northPanel = new JPanel();
+        northPanel.setLayout(new BoxLayout(northPanel, BoxLayout.Y_AXIS));
 
-        // Section Selection
-        topPanel.add(new JLabel("Select Section:"));
-        sectionDropdown = new JComboBox<>();
-        loadSections(); // Populate dropdown
-        topPanel.add(sectionDropdown);
+        // 1. Filter Row
+        JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        filterPanel.setBorder(BorderFactory.createTitledBorder("Select Course"));
 
-        JButton loadButton = new JButton("Load");
+        filterPanel.add(new JLabel("Term:"));
+        termFilter = new JComboBox<>(new String[]{"All", "Monsoon", "Winter", "Summer"});
+        termFilter.addActionListener(e -> resetAndFilter());
+        filterPanel.add(termFilter);
+
+        filterPanel.add(Box.createHorizontalStrut(15));
+
+        filterPanel.add(new JLabel("Search/Select Course:"));
+
+        // --- NEW SEARCHABLE DROPDOWN LOGIC ---
+        sectionSearchDropdown = new JComboBox<>();
+        sectionSearchDropdown.setPreferredSize(new Dimension(300, 25));
+        sectionSearchDropdown.setEditable(true);
+
+        JTextField editor = (JTextField) sectionSearchDropdown.getEditor().getEditorComponent();
+        editor.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_UP || e.getKeyCode() == KeyEvent.VK_DOWN || e.getKeyCode() == KeyEvent.VK_ENTER) return;
+                SwingUtilities.invokeLater(() -> filterSections(editor.getText()));
+            }
+        });
+        filterPanel.add(sectionSearchDropdown);
+
+        JButton loadButton = new JButton("Load Grades");
+        loadButton.setBackground(new Color(0, 100, 0));
+        loadButton.setForeground(Color.WHITE);
         loadButton.addActionListener(this::loadGradebook);
-        topPanel.add(loadButton);
+        filterPanel.add(Box.createHorizontalStrut(15));
+        filterPanel.add(loadButton);
 
-        // Spacer
-        topPanel.add(Box.createHorizontalStrut(20));
+        northPanel.add(filterPanel);
 
-        // CSV Buttons
+        // 2. CSV Controls Row
+        JPanel csvPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton exportButton = new JButton("Download CSV");
-        exportButton.addActionListener(this::exportToCSV);
-        topPanel.add(exportButton);
+        exportButton.addActionListener(e -> showFileOperation(true));
+        csvPanel.add(exportButton);
 
         JButton importButton = new JButton("Upload CSV");
-        importButton.addActionListener(this::importFromCSV);
-        topPanel.add(importButton);
+        importButton.addActionListener(e -> showFileOperation(false));
+        csvPanel.add(importButton);
 
-        add(topPanel, BorderLayout.NORTH);
+        northPanel.add(csvPanel);
 
-        // --- Center: Table ---
-        // Columns: ID, Roll No, Name, Quiz(20%), Midterm(30%), Final(50%), Total Grade
+        add(northPanel, BorderLayout.NORTH);
+
+        // --- CENTER: Table ---
         String[] columns = {"Enroll ID", "Roll No", "Name", "Quiz", "Midterm", "Final Exam", "Letter Grade"};
         tableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false; // Read-Only (User cannot double click to edit)
-            }
+            @Override public boolean isCellEditable(int row, int column) { return false; }
         };
 
         gradeTable = new JTable(tableModel);
+        gradeTable.setRowHeight(25);
+        gradeTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
 
-        // --- Center Alignment Logic ---
+        // Lockdown
+        gradeTable.getTableHeader().setReorderingAllowed(false);
+        gradeTable.getTableHeader().setResizingAllowed(false);
+
+        // Sorter (for local table sorting)
+        sorter = new TableRowSorter<>(tableModel);
+        gradeTable.setRowSorter(sorter);
+
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(JLabel.CENTER);
         gradeTable.setDefaultRenderer(Object.class, centerRenderer);
-
-        // Center Align Headers too
-        ((DefaultTableCellRenderer)gradeTable.getTableHeader().getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
-        // -----------------------------
-
         add(new JScrollPane(gradeTable), BorderLayout.CENTER);
 
-        // --- Bottom: Stats & Save Button ---
+        // --- SOUTH: Stats & Save ---
         JPanel bottomPanel = new JPanel(new BorderLayout());
+        btnStats = new JButton("View Class Statistics");
+        btnStats.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnStats.addActionListener(this::showStatistics);
+        bottomPanel.add(btnStats, BorderLayout.WEST);
 
-        statsLabel = new JLabel("Class Average: N/A");
-        statsLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        bottomPanel.add(statsLabel, BorderLayout.WEST);
-
-        // --- NEW: Save Button to persist CSV changes ---
-        JButton saveButton = new JButton("Save Uploaded Changes");
+        JButton saveButton = new JButton("Save Grades & Recalculate");
         saveButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        saveButton.setBackground(new Color(0, 120, 215)); // Blue
+        saveButton.setBackground(new Color(0, 120, 215));
         saveButton.setForeground(Color.WHITE);
         saveButton.setOpaque(true);
         saveButton.setBorderPainted(false);
-        saveButton.addActionListener(this::saveGrades); // Calls the save logic
-
+        saveButton.addActionListener(this::saveGrades);
         bottomPanel.add(saveButton, BorderLayout.EAST);
 
         add(bottomPanel, BorderLayout.SOUTH);
+
+        loadSectionsData();
     }
 
-    private void loadSections() {
+    private void loadSectionsData() {
         try {
-            List<Section> sections = instructorService.getSectionsForInstructor(session.getUserId());
-            sectionDropdown.removeAllItems();
-            for (Section s : sections) {
-                sectionDropdown.addItem(s);
-            }
+            allSections = instructorService.getSectionsForInstructor(session.getUserId());
+            resetAndFilter();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
+    private void resetAndFilter() {
+        // Triggered when Term changes. Reset search and filter by term.
+        JTextField editor = (JTextField) sectionSearchDropdown.getEditor().getEditorComponent();
+        editor.setText("");
+        filterSections("");
+    }
+
+    private void filterSections(String input) {
+        isAdjusting = true;
+        try {
+            String term = (String) termFilter.getSelectedItem();
+            List<Section> filtered = new ArrayList<>();
+
+            if (allSections != null) {
+                for (Section s : allSections) {
+                    boolean termMatch = "All".equals(term) || s.getTerm().contains(term);
+                    boolean nameMatch = s.toString().toLowerCase().contains(input.toLowerCase());
+
+                    if (termMatch && nameMatch) {
+                        filtered.add(s);
+                    }
+                }
+            }
+
+            sectionSearchDropdown.removeAllItems();
+            for (Section s : filtered) {
+                sectionSearchDropdown.addItem(s);
+            }
+
+            JTextField editor = (JTextField) sectionSearchDropdown.getEditor().getEditorComponent();
+            editor.setText(input);
+
+            if (!filtered.isEmpty() && !input.isEmpty()) {
+                sectionSearchDropdown.showPopup();
+            } else {
+                sectionSearchDropdown.hidePopup();
+            }
+        } finally {
+            isAdjusting = false;
+        }
+    }
+
     private void loadGradebook(ActionEvent e) {
-        Section selected = (Section) sectionDropdown.getSelectedItem();
-        if (selected == null) return;
+        // Get selection from the NEW dropdown
+        Object item = sectionSearchDropdown.getSelectedItem();
+        if (item == null || !(item instanceof Section)) {
+            JOptionPane.showMessageDialog(this, "Please select a valid course.");
+            return;
+        }
+        Section selected = (Section) item;
 
         try {
             currentRecords = instructorService.getGradebook(selected.getSectionId());
@@ -128,71 +211,63 @@ public class InstructorGradebookPanel extends JPanel {
                         r.enrollmentId, r.rollNo, r.name, r.quiz, r.midterm, r.finals, r.letterGrade
                 });
             }
-            // Auto-calculate stats for display
-            calculateStats();
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Error loading grades: " + ex.getMessage());
         }
     }
 
-    /**
-     * Iterates through the table (which may have been updated by CSV)
-     * and saves all values to the database.
-     */
     private void saveGrades(ActionEvent e) {
         try {
             int count = tableModel.getRowCount();
             if (count == 0) return;
 
+            double wQ = 20, wM = 30, wF = 50;
+            double mQ = 20, mM = 50, mF = 100;
+
             for (int i = 0; i < count; i++) {
                 int enrollId = (Integer) tableModel.getValueAt(i, 0);
-
-                // Parse scores from the table
                 double quiz = parseScore(tableModel.getValueAt(i, 3));
                 double mid = parseScore(tableModel.getValueAt(i, 4));
                 double fin = parseScore(tableModel.getValueAt(i, 5));
 
-                // Recalculate Logic (just to be safe)
-                double total = (quiz * 0.2) + (mid * 0.3) + (fin * 0.5);
+                double pctQ = (quiz / mQ) * wQ;
+                double pctM = (mid / mM) * wM;
+                double pctF = (fin / mF) * wF;
+                double total = pctQ + pctM + pctF;
+
                 String letter = total >= 90 ? "A" : total >= 80 ? "B" : total >= 70 ? "C" : total >= 60 ? "D" : "F";
 
-                // Update Database
                 instructorService.updateGrades(enrollId, quiz, mid, fin, letter);
-
-                // Update UI Letter Grade (in case CSV didn't have it)
                 tableModel.setValueAt(letter, i, 6);
             }
-
-            // Update Stats Label
-            calculateStats();
-
-            JOptionPane.showMessageDialog(this, "Grades Saved Successfully to Database!");
-
+            JOptionPane.showMessageDialog(this, "Grades Saved Successfully!");
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error saving grades: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "Error saving: " + ex.getMessage());
         }
     }
 
-    private void calculateStats() {
-        try {
-            double totalSum = 0;
-            int count = tableModel.getRowCount();
-
-            for (int i = 0; i < count; i++) {
-                double quiz = parseScore(tableModel.getValueAt(i, 3));
-                double mid = parseScore(tableModel.getValueAt(i, 4));
-                double fin = parseScore(tableModel.getValueAt(i, 5));
-
-                double total = (quiz * 0.2) + (mid * 0.3) + (fin * 0.5);
-                totalSum += total;
-            }
-
-            double avg = count > 0 ? totalSum / count : 0;
-            statsLabel.setText(String.format("Class Average: %.2f%%", avg));
-
-        } catch (Exception ex) {
-            statsLabel.setText("Error calculating stats");
+    private void showStatistics(ActionEvent e) {
+        int count = tableModel.getRowCount();
+        if (count == 0) {
+            JOptionPane.showMessageDialog(this, "No data.");
+            return;
         }
+
+        List<Double> scores = new ArrayList<>();
+        double mQ = 20, mM = 50, mF = 100;
+        double wQ = 20, wM = 30, wF = 50;
+
+        for (int i = 0; i < count; i++) {
+            double q = parseScore(tableModel.getValueAt(i, 3));
+            double m = parseScore(tableModel.getValueAt(i, 4));
+            double f = parseScore(tableModel.getValueAt(i, 5));
+
+            double total = ((q/mQ)*wQ) + ((m/mM)*wM) + ((f/mF)*wF);
+            scores.add(total);
+        }
+
+        GradeStatsDialog dialog = new GradeStatsDialog(SwingUtilities.getWindowAncestor(this), scores);
+        dialog.setVisible(true);
     }
 
     private double parseScore(Object obj) {
@@ -204,29 +279,44 @@ public class InstructorGradebookPanel extends JPanel {
         }
     }
 
-    // --- CSV EXPORT ---
-    private void exportToCSV(ActionEvent e) {
-        JFileChooser fileChooser = new JFileChooser();
+    private void showFileOperation(boolean isSave) {
+        JDialog waitDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Please Wait", true);
+        JPanel p = new JPanel(new BorderLayout(15, 15));
+        p.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        p.add(new JLabel("Opening File Manager...", SwingConstants.CENTER), BorderLayout.NORTH);
+        JProgressBar pb = new JProgressBar();
+        pb.setIndeterminate(true);
+        p.add(pb, BorderLayout.CENTER);
+        waitDialog.add(p);
+        waitDialog.setSize(300, 120);
+        waitDialog.setLocationRelativeTo(this);
+        waitDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+
+        new SwingWorker<JFileChooser, Void>() {
+            @Override protected JFileChooser doInBackground() { return new JFileChooser(); }
+            @Override protected void done() {
+                waitDialog.dispose();
+                try {
+                    JFileChooser fc = get();
+                    if (isSave) performExport(fc); else performImport(fc);
+                } catch (Exception e) { e.printStackTrace(); }
+            }
+        }.execute();
+        waitDialog.setVisible(true);
+    }
+
+    private void performExport(JFileChooser fileChooser) {
         fileChooser.setDialogTitle("Save Gradebook CSV");
         fileChooser.setFileFilter(new FileNameExtensionFilter("CSV Files", "csv"));
-
         if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             File file = fileChooser.getSelectedFile();
-            if (!file.getName().toLowerCase().endsWith(".csv")) {
-                file = new File(file.getParentFile(), file.getName() + ".csv");
-            }
-
+            if (!file.getName().toLowerCase().endsWith(".csv")) file = new File(file.getParentFile(), file.getName() + ".csv");
             try (PrintWriter pw = new PrintWriter(file)) {
                 pw.println("EnrollID,RollNo,Name,Quiz,Midterm,Final,Grade");
                 for (int i = 0; i < tableModel.getRowCount(); i++) {
                     pw.printf("%s,%s,%s,%s,%s,%s,%s%n",
-                            tableModel.getValueAt(i, 0),
-                            tableModel.getValueAt(i, 1),
-                            tableModel.getValueAt(i, 2),
-                            tableModel.getValueAt(i, 3),
-                            tableModel.getValueAt(i, 4),
-                            tableModel.getValueAt(i, 5),
-                            tableModel.getValueAt(i, 6));
+                            tableModel.getValueAt(i, 0), tableModel.getValueAt(i, 1), tableModel.getValueAt(i, 2),
+                            tableModel.getValueAt(i, 3), tableModel.getValueAt(i, 4), tableModel.getValueAt(i, 5), tableModel.getValueAt(i, 6));
                 }
                 JOptionPane.showMessageDialog(this, "Export Successful!");
             } catch (IOException ex) {
@@ -235,37 +325,27 @@ public class InstructorGradebookPanel extends JPanel {
         }
     }
 
-    // --- CSV IMPORT (Matches by Enrollment ID) ---
-    private void importFromCSV(ActionEvent e) {
-        JFileChooser fileChooser = new JFileChooser();
+    private void performImport(JFileChooser fileChooser) {
         fileChooser.setDialogTitle("Open Gradebook CSV");
         fileChooser.setFileFilter(new FileNameExtensionFilter("CSV Files", "csv"));
-
         if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             File file = fileChooser.getSelectedFile();
-
             try (BufferedReader br = new BufferedReader(new FileReader(file))) {
                 String line;
                 boolean isHeader = true;
                 int updatedCount = 0;
-
                 while ((line = br.readLine()) != null) {
                     if (isHeader) { isHeader = false; continue; }
-
                     String[] parts = line.split(",");
                     if (parts.length < 6) continue;
-
                     String csvEnrollIdStr = parts[0].trim();
-
                     for (int i = 0; i < tableModel.getRowCount(); i++) {
                         String tableEnrollIdStr = tableModel.getValueAt(i, 0).toString();
-
                         if (tableEnrollIdStr.equals(csvEnrollIdStr)) {
                             try {
                                 double quiz = Double.parseDouble(parts[3]);
                                 double mid = Double.parseDouble(parts[4]);
                                 double fin = Double.parseDouble(parts[5]);
-
                                 tableModel.setValueAt(quiz, i, 3);
                                 tableModel.setValueAt(mid, i, 4);
                                 tableModel.setValueAt(fin, i, 5);
@@ -276,10 +356,7 @@ public class InstructorGradebookPanel extends JPanel {
                         }
                     }
                 }
-
-                calculateStats();
-                JOptionPane.showMessageDialog(this, "Imported " + updatedCount + " records.\nClick 'Save Uploaded Changes' to commit to database.");
-
+                JOptionPane.showMessageDialog(this, "Imported " + updatedCount + " records.\nClick 'Save Grades' to calculate and commit.");
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "Error reading CSV: " + ex.getMessage());
             }

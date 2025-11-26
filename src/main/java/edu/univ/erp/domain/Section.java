@@ -2,7 +2,6 @@ package edu.univ.erp.domain;
 
 /**
  * A simple data class to hold Section information.
- * This is an updated version that includes fields for joins.
  */
 public class Section {
     private final int sectionId;
@@ -10,18 +9,22 @@ public class Section {
     private final String dayTime;
     private final String room;
     private final int capacity;
+    // --- New Fields ---
+    private final String semester;
+    private final int year;
 
     // Fields from JOINs
     private String courseCode;
     private String instructorName;
 
-    // Constructor for basic section creation
-    public Section(int sectionId, int courseId, String dayTime, String room, int capacity) {
+    public Section(int sectionId, int courseId, String dayTime, String room, int capacity, String semester, int year) {
         this.sectionId = sectionId;
         this.courseId = courseId;
         this.dayTime = dayTime;
         this.room = room;
         this.capacity = capacity;
+        this.semester = semester;
+        this.year = year;
     }
 
     // --- Getters ---
@@ -30,6 +33,9 @@ public class Section {
     public String getDayTime() { return dayTime; }
     public String getRoom() { return room; }
     public int getCapacity() { return capacity; }
+    public String getSemester() { return semester; }
+    public int getYear() { return year; }
+
     public String getCourseCode() { return courseCode; }
     public String getInstructorName() { return instructorName; }
 
@@ -41,11 +47,13 @@ public class Section {
         this.instructorName = instructorName;
     }
 
+    public String getTerm() {
+        return semester + " " + year;
+    }
+
     @Override
     public String toString() {
-        // This controls what is shown in the dropdown
-        // Example output: "CS101 - Mon/Wed 10:00 (Room 101)"
         String label = (courseCode != null ? courseCode : "Section " + sectionId);
-        return label + " - " + dayTime + " (" + room + ")";
+        return label + " - " + dayTime + " (" + semester + " " + year + ")";
     }
 }

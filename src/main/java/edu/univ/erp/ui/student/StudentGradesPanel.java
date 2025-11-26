@@ -5,19 +5,30 @@ import edu.univ.erp.domain.UserSession;
 import edu.univ.erp.service.StudentService;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.sql.SQLException;
+import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class StudentGradesPanel extends JPanel {
 
     private final UserSession session;
     private final StudentService studentService;
 
-    // UI Components
     private JTable gradesTable;
     private DefaultTableModel tableModel;
+    private JComboBox<String> semesterFilter;
+    private List<EnrollmentDetails> allEnrollments = new ArrayList<>();
+
+    private Map<String, String> displayToTermMap = new LinkedHashMap<>();
 
     public StudentGradesPanel(UserSession session, StudentService studentService) {
         this.session = session;
@@ -26,62 +37,189 @@ public class StudentGradesPanel extends JPanel {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // --- 1. Title Section ---
+        // --- 1. Top Panel (Title + Filter) ---
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JLabel titleLabel = new JLabel("My Academic Record");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        add(titleLabel, BorderLayout.NORTH);
+        topPanel.add(titleLabel);
 
-        // --- 2. Table Setup ---
-        // We will show the Course info and the Final Grade
-        String[] columnNames = {"Course Code", "Course Title", "Instructor", "Credits", "Final Grade"};
+        topPanel.add(Box.createHorizontalStrut(30));
+        topPanel.add(new JLabel("Filter by Term:"));
+
+        semesterFilter = new JComboBox<>();
+        semesterFilter.addItem("All Semesters");
+        semesterFilter.addActionListener(e -> filterTable());
+        topPanel.add(semesterFilter);
+
+        add(topPanel, BorderLayout.NORTH);
+
+        // --- 2. Table Setup (Added Quiz/Mid/Final) ---
+        String[] columnNames = {"Term", "Course", "Credits", "Quiz", "Midterm", "Final", "Grade"};
 
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
-            public boolean isCellEditable(int row, int column) {
-                return false; // Make table read-only
-            }
+            public boolean isCellEditable(int row, int column) { return false; }
         };
 
         gradesTable = new JTable(tableModel);
-        gradesTable.setRowHeight(25);
+        gradesTable.setRowHeight(30);
         gradesTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+        gradesTable.getTableHeader().setReorderingAllowed(false);
 
-        // Add table to scroll pane
-        JScrollPane scrollPane = new JScrollPane(gradesTable);
-        add(scrollPane, BorderLayout.CENTER);
+        // Center Align
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(JLabel.CENTER);
+        gradesTable.setDefaultRenderer(Object.class, centerRenderer);
 
-        // --- 3. Refresh Button (Bottom) ---
-        JButton refreshButton = new JButton("Refresh Grades");
-        refreshButton.addActionListener(e -> loadGrades());
+        add(new JScrollPane(gradesTable), BorderLayout.CENTER);
 
+        // --- 3. Buttons ---
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+
+        JButton exportButton = new JButton("Download Transcript (CSV)");
+        exportButton.setBackground(new Color(0, 100, 0));
+        exportButton.setForeground(Color.WHITE);
+        exportButton.addActionListener(e -> showExportDialog());
+
+        JButton refreshButton = new JButton("Refresh Grades");
+        refreshButton.addActionListener(e -> loadData());
+
+        bottomPanel.add(exportButton);
+        bottomPanel.add(Box.createHorizontalStrut(10));
         bottomPanel.add(refreshButton);
+
         add(bottomPanel, BorderLayout.SOUTH);
 
-        // Load data when panel is created
-        loadGrades();
+        loadData();
     }
 
-    private void loadGrades() {
+    private void loadData() {
         try {
-            List<EnrollmentDetails> enrollments = studentService.getEnrollmentsForStudent(session.getUserId());
+            allEnrollments = studentService.getEnrollmentsForStudent(session.getUserId());
 
-            tableModel.setRowCount(0);
+            Set<String> rawTerms = new HashSet<>();
+            for(EnrollmentDetails e : allEnrollments) rawTerms.add(e.getTerm());
 
-            for (EnrollmentDetails e : enrollments) {
-                // USE THE REAL GRADE NOW
-                String grade = e.getFinalGrade();
+            List<String> sortedTerms = new ArrayList<>(rawTerms);
+            sortedTerms.sort((t1, t2) -> {
+                String[] p1 = t1.split(" ");
+                String[] p2 = t2.split(" ");
+                int y1 = Integer.parseInt(p1[1]);
+                int y2 = Integer.parseInt(p2[1]);
+                if (y1 != y2) return Integer.compare(y1, y2);
+                int s1 = getSeasonWeight(p1[0]);
+                int s2 = getSeasonWeight(p2[0]);
+                return Integer.compare(s1, s2);
+            });
 
-                tableModel.addRow(new Object[]{
-                        e.getCourseCode(),
-                        e.getCourseTitle(),
-                        e.getInstructorName(),
-                        "4",
-                        grade // <--- Displays real grade from DB (e.g. "A", "85.5", or "N/A")
-                });
+            displayToTermMap.clear();
+            semesterFilter.removeAllItems();
+
+            String allOption = "All Semesters";
+            semesterFilter.addItem(allOption);
+            displayToTermMap.put(allOption, "ALL");
+
+            int semCounter = 1;
+            for (String term : sortedTerms) {
+                String displayName = "Semester " + semCounter + " (" + term + ")";
+                semesterFilter.addItem(displayName);
+                displayToTermMap.put(displayName, term);
+                semCounter++;
             }
+
+            filterTable();
+
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Error loading grades: " + ex.getMessage());
+        }
+    }
+
+    private int getSeasonWeight(String season) {
+        if ("Winter".equalsIgnoreCase(season)) return 1;
+        if ("Summer".equalsIgnoreCase(season)) return 2;
+        if ("Monsoon".equalsIgnoreCase(season)) return 3;
+        return 4;
+    }
+
+    private void filterTable() {
+        tableModel.setRowCount(0);
+        String selectedDisplay = (String) semesterFilter.getSelectedItem();
+        if (selectedDisplay == null) return;
+
+        String targetTerm = displayToTermMap.get(selectedDisplay);
+
+        List<EnrollmentDetails> filtered = allEnrollments;
+        if (!"ALL".equals(targetTerm)) {
+            filtered = allEnrollments.stream()
+                    .filter(e -> e.getTerm().equals(targetTerm))
+                    .collect(Collectors.toList());
+        }
+
+        for (EnrollmentDetails e : filtered) {
+            tableModel.addRow(new Object[]{
+                    e.getTerm(),
+                    e.getCourseCode() + ": " + e.getCourseTitle(),
+                    String.valueOf(e.getCredits()),
+                    String.format("%.1f", e.getQuiz()),    // NEW
+                    String.format("%.1f", e.getMidterm()), // NEW
+                    String.format("%.1f", e.getFinals()),  // NEW
+                    e.getFinalGrade()
+            });
+        }
+    }
+
+    private void showExportDialog() {
+        JDialog waitDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Please Wait", true);
+        JPanel p = new JPanel(new BorderLayout(15, 15));
+        p.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        p.add(new JLabel("Opening File Manager...", SwingConstants.CENTER), BorderLayout.NORTH);
+        JProgressBar pb = new JProgressBar();
+        pb.setIndeterminate(true);
+        p.add(pb, BorderLayout.CENTER);
+        waitDialog.add(p);
+        waitDialog.setSize(300, 120);
+        waitDialog.setLocationRelativeTo(this);
+        waitDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+
+        new SwingWorker<JFileChooser, Void>() {
+            @Override
+            protected JFileChooser doInBackground() { return new JFileChooser(); }
+            @Override
+            protected void done() {
+                waitDialog.dispose();
+                try { performExport(get()); } catch (Exception e) { e.printStackTrace(); }
+            }
+        }.execute();
+
+        waitDialog.setVisible(true);
+    }
+
+    private void performExport(JFileChooser fileChooser) {
+        fileChooser.setDialogTitle("Save Transcript");
+        fileChooser.setSelectedFile(new File("Transcript.csv"));
+        fileChooser.setFileFilter(new FileNameExtensionFilter("CSV Files", "csv"));
+
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File file = fileChooser.getSelectedFile();
+            if (!file.getName().toLowerCase().endsWith(".csv")) file = new File(file.getParentFile(), file.getName() + ".csv");
+
+            try (PrintWriter pw = new PrintWriter(new FileWriter(file))) {
+                pw.println("Term,Course,Credits,Quiz,Midterm,Final,Grade");
+                for (int i = 0; i < tableModel.getRowCount(); i++) {
+                    pw.printf("%s,%s,%s,%s,%s,%s,%s%n",
+                            tableModel.getValueAt(i, 0),
+                            tableModel.getValueAt(i, 1),
+                            tableModel.getValueAt(i, 2),
+                            tableModel.getValueAt(i, 3),
+                            tableModel.getValueAt(i, 4),
+                            tableModel.getValueAt(i, 5),
+                            tableModel.getValueAt(i, 6)
+                    );
+                }
+                JOptionPane.showMessageDialog(this, "Transcript saved successfully!");
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Error saving file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 }

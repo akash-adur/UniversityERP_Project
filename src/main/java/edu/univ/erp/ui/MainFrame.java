@@ -7,11 +7,12 @@ import edu.univ.erp.ui.admin.AdminCoursePanel;
 import edu.univ.erp.ui.admin.AdminMaintenancePanel;
 import edu.univ.erp.ui.admin.AdminUserPanel;
 import edu.univ.erp.ui.instructor.InstructorGradebookPanel;
+import edu.univ.erp.ui.instructor.InstructorGradesManagementPanel;
 import edu.univ.erp.ui.instructor.InstructorSectionsPanel;
 import edu.univ.erp.ui.student.StudentCatalogPanel;
 import edu.univ.erp.ui.student.StudentGradesPanel;
 import edu.univ.erp.ui.student.StudentRegistrationsPanel;
-import edu.univ.erp.ui.instructor.InstructorGradesManagementPanel;
+import edu.univ.erp.ui.student.StudentTimetablePanel;
 
 import javax.swing.*;
 import java.awt.*;
@@ -19,53 +20,45 @@ import java.awt.*;
 public class MainFrame extends JFrame {
 
     private final UserSession session;
-
     private final StudentService studentService;
     private final AdminService adminService;
 
     public MainFrame(UserSession session) {
         this.session = session;
-
         this.studentService = new StudentService();
         this.adminService = new AdminService();
 
         setTitle("University ERP Dashboard");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(800, 600));
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // Standard Close
+        setMinimumSize(new Dimension(900, 700));
         setLocationRelativeTo(null);
 
-        // --- UPDATED LAYOUT FOR BANNER ---
+        // --- Layout Setup ---
         setLayout(new BorderLayout());
-
-        // 1. Create Main Container to hold Banner + Content
         JPanel mainContainer = new JPanel(new BorderLayout());
         add(mainContainer, BorderLayout.CENTER);
 
-        // 2. Add Maintenance Banner Check
+        // 1. Maintenance Banner
         addMaintenanceBanner(mainContainer);
 
-        // 3. Create Top Panel (Welcome + Logout)
+        // 2. Top Panel & Tabs
         JPanel topPanel = createTopPanel();
-
-        // 4. Create Main Content Tabs
         JTabbedPane tabbedPane = createMainTabs();
 
-        // 5. Assemble Center Content (Top Panel + Tabs)
         JPanel centerContent = new JPanel(new BorderLayout());
         centerContent.add(topPanel, BorderLayout.NORTH);
         centerContent.add(tabbedPane, BorderLayout.CENTER);
-
         mainContainer.add(centerContent, BorderLayout.CENTER);
 
-        // 6. Status Bar (Bottom)
+        // 3. Status Bar
         JLabel statusBar = new JLabel("Logged in as: " + session.getUsername() + " (" + session.getRole() + ")");
         statusBar.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         add(statusBar, BorderLayout.SOUTH);
+
+        // --- NOTE: Auto-backup on close has been REMOVED ---
+        // This prevents overwriting your "Good" backup with accidental changes.
     }
 
-    /**
-     * Checks the database settings and adds a red banner if maintenance is ON.
-     */
     private void addMaintenanceBanner(JPanel container) {
         try {
             String mode = adminService.getSetting("maintenance_mode");
@@ -76,12 +69,9 @@ public class MainFrame extends JFrame {
                 banner.setForeground(Color.WHITE);
                 banner.setFont(new Font("Segoe UI", Font.BOLD, 14));
                 banner.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));
-
-                // Add banner to the very top of the main container
                 container.add(banner, BorderLayout.NORTH);
             }
         } catch (Exception e) {
-            // Ignore if DB error on startup (banner just won't show)
             System.err.println("Could not check maintenance status: " + e.getMessage());
         }
     }
@@ -104,32 +94,29 @@ public class MainFrame extends JFrame {
 
     private JTabbedPane createMainTabs() {
         JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.addTab("Home", new JPanel());
 
-        tabbedPane.addTab("Home", new JPanel()); // Placeholder or Welcome text
-
-        // --- Student Tabs ---
         if (session.isStudent()) {
             tabbedPane.addTab("Course Catalog", new StudentCatalogPanel(session, studentService));
             tabbedPane.addTab("My Registrations", new StudentRegistrationsPanel(session, studentService));
-            // UPDATED: Now uses the real grades panel
+            tabbedPane.addTab("My Timetable", new StudentTimetablePanel(session, studentService));
             tabbedPane.addTab("My Grades", new StudentGradesPanel(session, studentService));
         }
 
-        // --- Instructor Tabs ---
         if (session.isInstructor()) {
             tabbedPane.addTab("My Sections", new InstructorSectionsPanel(session));
-            // 1. New Management Panel
             tabbedPane.addTab("Grades Management", new InstructorGradesManagementPanel(session));
-            // 2. Old (now View-Only) Gradebook
             tabbedPane.addTab("Gradebook View", new InstructorGradebookPanel(session));
         }
 
-        // --- Admin Tabs ---
         if (session.isAdmin()) {
             tabbedPane.addTab("User Management", new AdminUserPanel(adminService));
             tabbedPane.addTab("Course Management", new AdminCoursePanel(adminService));
-            // UPDATED: Now uses the real maintenance panel
-            tabbedPane.addTab("Maintenance", new AdminMaintenancePanel(adminService));
+            tabbedPane.addTab("Maintenance", new AdminMaintenancePanel(adminService, () -> {
+                // Quick refresh for banner toggling
+                this.dispose();
+                new MainFrame(session).setVisible(true);
+            }));
         }
 
         return tabbedPane;
@@ -141,6 +128,7 @@ public class MainFrame extends JFrame {
                 JOptionPane.YES_NO_OPTION);
 
         if (choice == JOptionPane.YES_OPTION) {
+            // No backup on logout anymore
             dispose();
             SwingUtilities.invokeLater(() -> {
                 new LoginFrame().setVisible(true);

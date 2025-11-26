@@ -9,12 +9,20 @@ public class EnrollmentDetails {
     private final String room;
     private final String instructorName;
     private final String status;
-
-    // This is the new field causing the error
     private final String finalGrade;
+    private final int credits;
+    private final String semester;
+    private final int year;
+
+    // --- NEW SCORE FIELDS ---
+    private final double quiz;
+    private final double midterm;
+    private final double finals;
 
     public EnrollmentDetails(int enrollmentId, int sectionId, String courseCode, String courseTitle,
-                             String dayTime, String room, String instructorName, String status, String finalGrade) {
+                             String dayTime, String room, String instructorName, String status,
+                             String finalGrade, int credits, String semester, int year,
+                             double quiz, double midterm, double finals) { // Updated Constructor
         this.enrollmentId = enrollmentId;
         this.sectionId = sectionId;
         this.courseCode = courseCode;
@@ -23,9 +31,13 @@ public class EnrollmentDetails {
         this.room = room;
         this.instructorName = instructorName;
         this.status = status;
-
-        // You MUST have this line to fix the "might not have been initialized" error:
         this.finalGrade = finalGrade;
+        this.credits = credits;
+        this.semester = semester;
+        this.year = year;
+        this.quiz = quiz;
+        this.midterm = midterm;
+        this.finals = finals;
     }
 
     // Getters
@@ -37,7 +49,14 @@ public class EnrollmentDetails {
     public String getRoom() { return room; }
     public String getInstructorName() { return instructorName; }
     public String getStatus() { return status; }
-
-    // New getter
     public String getFinalGrade() { return finalGrade; }
+    public int getCredits() { return credits; }
+    public String getSemester() { return semester; }
+    public int getYear() { return year; }
+    public String getTerm() { return semester + " " + year; }
+
+    // New Getters for Scores
+    public double getQuiz() { return quiz; }
+    public double getMidterm() { return midterm; }
+    public double getFinals() { return finals; }
 }
