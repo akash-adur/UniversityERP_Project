@@ -12,14 +12,27 @@ import java.util.List;
 
 public class InstructorService {
 
-    // 1. Get all sections assigned to this instructor
+    private final AdminService adminService;
+
+    public InstructorService() {
+        this.adminService = new AdminService();
+    }
+
+    private void checkMaintenanceMode() throws Exception {
+        String mode = adminService.getSetting("maintenance_mode");
+        if ("true".equalsIgnoreCase(mode)) {
+            throw new Exception("⚠️ System is under maintenance. Grade updates are disabled.");
+        }
+    }
+
     public List<Section> getSectionsForInstructor(int instructorId) throws SQLException {
         List<Section> sections = new ArrayList<>();
-        String sql = "SELECT s.section_id, s.course_id, s.day_time, s.room, s.capacity, " +
+        String sql = "SELECT s.section_id, s.course_id, s.day_time, s.room, s.capacity, s.semester, s.year, " +
                 "c.code as courseCode, c.title as courseTitle " +
                 "FROM ERPDB.sections s " +
                 "JOIN ERPDB.courses c ON s.course_id = c.course_id " +
-                "WHERE s.instructor_id = ?";
+                "WHERE s.instructor_id = ? " +
+                "ORDER BY s.year DESC, s.semester";
 
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -31,9 +44,10 @@ public class InstructorService {
                             rs.getInt("course_id"),
                             rs.getString("day_time"),
                             rs.getString("room"),
-                            rs.getInt("capacity")
+                            rs.getInt("capacity"),
+                            rs.getString("semester"),
+                            rs.getInt("year")
                     );
-                    // Reuse the Section domain object, setting extra fields
                     s.setCourseCode(rs.getString("courseCode") + " - " + rs.getString("courseTitle"));
                     sections.add(s);
                 }
@@ -42,8 +56,6 @@ public class InstructorService {
         return sections;
     }
 
-    // 2. Get Gradebook Data (Student + Grades) for a specific section
-    // We will use a simple inner class DTO for this to avoid creating a new file
     public List<GradeRecord> getGradebook(int sectionId) throws SQLException {
         List<GradeRecord> records = new ArrayList<>();
         String sql = "SELECT e.enrollment_id, s.roll_no, u.username, " +
@@ -73,8 +85,8 @@ public class InstructorService {
         return records;
     }
 
-    // 3. Update Grades
-    public void updateGrades(int enrollmentId, double quiz, double midterm, double finalScore, String letterGrade) throws SQLException {
+    public void updateGrades(int enrollmentId, double quiz, double midterm, double finalScore, String letterGrade) throws Exception {
+        checkMaintenanceMode();
         String sql = "UPDATE ERPDB.enrollments SET score_quiz=?, score_midterm=?, score_final=?, final_grade=? WHERE enrollment_id=?";
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -87,7 +99,6 @@ public class InstructorService {
         }
     }
 
-    // Simple DTO for the Table
     public static class GradeRecord {
         public int enrollmentId;
         public String rollNo;

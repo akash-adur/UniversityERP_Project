@@ -15,27 +15,18 @@ import java.util.List;
 
 public class AdminService {
 
-    // --- NEW METHODS ---
-    /**
-     * Gets a specific setting value from the database.
-     */
     public String getSetting(String settingKey) throws SQLException {
         String sql = "SELECT setting_value FROM ERPDB.settings WHERE setting_key = ?";
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, settingKey);
             try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getString("setting_value");
-                }
+                if (rs.next()) return rs.getString("setting_value");
             }
         }
-        return null; // Not found
+        return null;
     }
 
-    /**
-     * Updates a specific setting value in the database.
-     */
     public void setSetting(String settingKey, String settingValue) throws SQLException {
         String sql = "UPDATE ERPDB.settings SET setting_value = ? WHERE setting_key = ?";
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();
@@ -46,15 +37,14 @@ public class AdminService {
         }
     }
 
-    // --- ALL OTHER ADMIN METHODS (UNCHANGED) ---
-
-    public void createUser(String username, String password, String role) throws SQLException {
+    public void createUser(String username, String password, String role, String department) throws SQLException {
         String passwordHash = BCrypt.hashpw(password, BCrypt.gensalt());
         Connection authConn = null;
         Connection erpConn = null;
         try {
             authConn = DatabaseFactory.getAuthDS().getConnection();
             erpConn = DatabaseFactory.getErpDS().getConnection();
+
             String authSql = "INSERT INTO AuthDB.users_auth (username, role, password_hash) VALUES (?, ?, ?)";
             int newUserId;
             try (PreparedStatement authStmt = authConn.prepareStatement(authSql, Statement.RETURN_GENERATED_KEYS)) {
@@ -63,13 +53,11 @@ public class AdminService {
                 authStmt.setString(3, passwordHash);
                 authStmt.executeUpdate();
                 try (ResultSet rs = authStmt.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        newUserId = rs.getInt(1);
-                    } else {
-                        throw new SQLException("Creating user failed, no ID obtained.");
-                    }
+                    if (rs.next()) newUserId = rs.getInt(1);
+                    else throw new SQLException("Creating user failed, no ID obtained.");
                 }
             }
+
             String erpSql;
             if ("Student".equalsIgnoreCase(role)) {
                 erpSql = "INSERT INTO ERPDB.students (user_id, roll_no, program, year) VALUES (?, ?, ?, ?)";
@@ -85,7 +73,8 @@ public class AdminService {
                     erpStmt.setString(3, "B.Tech");
                     erpStmt.setInt(4, 1);
                 } else {
-                    erpStmt.setString(2, "CompSci");
+                    String deptToSave = (department != null && !department.isEmpty()) ? department : "General";
+                    erpStmt.setString(2, deptToSave);
                     erpStmt.setString(3, "Professor");
                 }
                 erpStmt.executeUpdate();
@@ -125,13 +114,16 @@ public class AdminService {
 
     public List<Instructor> getAllInstructors() throws SQLException {
         List<Instructor> instructors = new ArrayList<>();
-        String sql = "SELECT user_id, department, title FROM ERPDB.instructors";
+        String sql = "SELECT i.user_id, i.department, i.title, u.username " +
+                "FROM ERPDB.instructors i " +
+                "JOIN AuthDB.users_auth u ON i.user_id = u.user_id";
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
             while (rs.next()) {
                 instructors.add(new Instructor(
                         rs.getInt("user_id"),
+                        rs.getString("username"),
                         rs.getString("department"),
                         rs.getString("title")
                 ));
@@ -142,13 +134,15 @@ public class AdminService {
 
     public List<Section> getAllSections() throws SQLException {
         List<Section> sections = new ArrayList<>();
-        String sql = "SELECT s.section_id, s.course_id, s.day_time, s.room, s.capacity, " +
+        // Updated to select semester and year
+        String sql = "SELECT s.section_id, s.course_id, s.day_time, s.room, s.capacity, s.semester, s.year, " +
                 "c.code as courseCode, " +
-                "COALESCE(i.title, 'TBD') as instructorName " +
+                "COALESCE(u.username, 'TBD') as instructorName " +
                 "FROM ERPDB.sections s " +
                 "JOIN ERPDB.courses c ON s.course_id = c.course_id " +
                 "LEFT JOIN ERPDB.instructors i ON s.instructor_id = i.user_id " +
-                "ORDER BY s.section_id";
+                "LEFT JOIN AuthDB.users_auth u ON i.user_id = u.user_id " +
+                "ORDER BY s.year DESC, s.semester, s.section_id";
 
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
@@ -159,7 +153,9 @@ public class AdminService {
                         rs.getInt("course_id"),
                         rs.getString("day_time"),
                         rs.getString("room"),
-                        rs.getInt("capacity")
+                        rs.getInt("capacity"),
+                        rs.getString("semester"),
+                        rs.getInt("year")
                 );
                 s.setCourseCode(rs.getString("courseCode"));
                 s.setInstructorName(rs.getString("instructorName"));

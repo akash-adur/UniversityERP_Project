@@ -12,8 +12,13 @@ public class AdminMaintenancePanel extends JPanel {
     private final JToggleButton toggleButton;
     private final JLabel statusLabel;
 
-    public AdminMaintenancePanel(AdminService adminService) {
+    // Callback to notify MainFrame
+    private final Runnable onStatusChange;
+
+    public AdminMaintenancePanel(AdminService adminService, Runnable onStatusChange) {
         this.adminService = adminService;
+        this.onStatusChange = onStatusChange;
+
         setLayout(new GridBagLayout());
         setBorder(BorderFactory.createTitledBorder("Maintenance Control"));
 
@@ -22,7 +27,6 @@ public class AdminMaintenancePanel extends JPanel {
         gbc.gridx = 0; gbc.gridy = 0;
 
         statusLabel = new JLabel("Loading...");
-        // FIX: Changed "Segoe UI" to Font.SANS_SERIF to fix macOS emoji rendering bug
         statusLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
         add(statusLabel, gbc);
 
@@ -31,10 +35,8 @@ public class AdminMaintenancePanel extends JPanel {
         toggleButton.setPreferredSize(new Dimension(200, 50));
         add(toggleButton, gbc);
 
-        // Load initial state
         loadState();
 
-        // Listener
         toggleButton.addActionListener(e -> toggleMaintenance());
     }
 
@@ -53,10 +55,15 @@ public class AdminMaintenancePanel extends JPanel {
         try {
             adminService.setSetting("maintenance_mode", String.valueOf(turnOn));
             updateUI(turnOn);
+
+            // Refresh the Banner immediately
+            if (onStatusChange != null) {
+                onStatusChange.run();
+            }
+
             JOptionPane.showMessageDialog(this, "Maintenance Mode Updated!");
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
-            // Revert on failure
             toggleButton.setSelected(!turnOn);
         }
     }
@@ -69,7 +76,7 @@ public class AdminMaintenancePanel extends JPanel {
             toggleButton.setText("Turn Maintenance OFF");
         } else {
             statusLabel.setText("🟢 System is Normal");
-            statusLabel.setForeground(new Color(0, 128, 0)); // Dark Green
+            statusLabel.setForeground(new Color(0, 128, 0));
             toggleButton.setText("Turn Maintenance ON");
         }
     }
