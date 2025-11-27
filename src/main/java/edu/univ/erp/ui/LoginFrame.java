@@ -155,6 +155,16 @@ public class LoginFrame extends JFrame {
                     Throwable cause = e.getCause();
                     if (cause != null) {
                         String msg = cause.getMessage();
+
+                        // --- FIX START ---
+                        if (msg == null) {
+                            // If message is null, show the Exception class name instead
+                            msg = "Unexpected error: " + cause.getClass().getSimpleName();
+                            // IMPORTANT: Print the stack trace to console so you can see the REAL error
+                            cause.printStackTrace();
+                        }
+                        // --- FIX END ---
+
                         statusLabel.setText(msg);
 
                         if (msg.contains("Account locked")) {

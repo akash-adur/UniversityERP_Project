@@ -5,12 +5,14 @@ import java.sql.DriverManager;
 import java.sql.Statement;
 import java.sql.SQLException;
 
+import static edu.univ.erp.util.PasswordHasher.hashPassword;
+
 public class DatabaseSetup {
 
     // !!! CONFIGURE THESE !!!
     private static final String DB_URL = "jdbc:mysql://localhost:3306/";
     private static final String DB_USER = "root";
-    private static final String DB_PASSWORD = "prakhar7896";
+    private static final String DB_PASSWORD = "akash6170";
 
     public static void main(String[] args) {
         System.out.println("... Starting Database Setup ...");
@@ -36,7 +38,7 @@ public class DatabaseSetup {
                     ")";
             stmt.executeUpdate(createAuthTable);
 
-            String defaultHash = "$2a$10$rRiAi4DLdyb9.9wpMWaMze/NLsoZeNtJ5KPI.WajjuObbOxKV/KOW";
+            String defaultHash = hashPassword("password123");
 
             // Added failed_attempts to INSERT (defaults to 0 anyway, but good for clarity if needed)
             String insertUsers = "INSERT IGNORE INTO users_auth (user_id, username, role, password_hash, status, failed_attempts) VALUES " +

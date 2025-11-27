@@ -40,19 +40,16 @@ public class AdminSectionsPanel extends JPanel {
         topPanel.add(searchField);
         add(topPanel, BorderLayout.NORTH);
 
-        // --- UPDATED COLUMNS: Split "Day/Time" to "Days", "Time" ---
         String[] columnNames = {"Section ID", "Course Code", "Sec", "Days", "Time", "Current Instructor"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override public boolean isCellEditable(int row, int column) { return false; }
         };
         sectionsTable = new JTable(tableModel);
 
-        // Center Align
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(JLabel.CENTER);
         sectionsTable.setDefaultRenderer(Object.class, centerRenderer);
 
-        // Set Width for "Sec" column
         sectionsTable.getColumnModel().getColumn(2).setPreferredWidth(40);
         sectionsTable.getColumnModel().getColumn(2).setMaxWidth(60);
 
@@ -100,8 +97,8 @@ public class AdminSectionsPanel extends JPanel {
                         s.getSectionId(),
                         s.getCourseCode(),
                         s.getSectionName(),
-                        days, // Column 3
-                        time, // Column 4
+                        days,
+                        time,
                         s.getInstructorName()
                 });
             }
@@ -125,6 +122,19 @@ public class AdminSectionsPanel extends JPanel {
         Section selectedSection = sectionList.get(modelRow);
         Instructor selectedInstructor = (Instructor) instructorDropdown.getSelectedItem();
         if (selectedInstructor == null) return;
+
+        // --- REQUEST 1: Warning if already assigned ---
+        String currentInst = selectedSection.getInstructorName();
+        if (currentInst != null && !currentInst.equalsIgnoreCase("TBD") && !currentInst.isEmpty()) {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Instructor '" + currentInst + "' is already assigned to this section.\nDo you want to overwrite?",
+                    "Confirm Overwrite",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
 
         try {
             adminService.assignInstructor(selectedSection.getSectionId(), selectedInstructor.getUserId());
