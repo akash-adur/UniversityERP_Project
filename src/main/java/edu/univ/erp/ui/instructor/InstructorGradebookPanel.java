@@ -118,21 +118,12 @@ public class InstructorGradebookPanel extends JPanel {
         gradeTable.setDefaultRenderer(Object.class, centerRenderer);
         add(new JScrollPane(gradeTable), BorderLayout.CENTER);
 
-        // --- SOUTH: Stats & Save ---
+        // --- SOUTH: Stats Only ---
         JPanel bottomPanel = new JPanel(new BorderLayout());
         btnStats = new JButton("View Class Statistics");
         btnStats.setFont(new Font("Segoe UI", Font.BOLD, 12));
         btnStats.addActionListener(this::showStatistics);
         bottomPanel.add(btnStats, BorderLayout.WEST);
-
-        JButton saveButton = new JButton("Save Grades & Recalculate");
-        saveButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        saveButton.setBackground(new Color(0, 120, 215));
-        saveButton.setForeground(Color.WHITE);
-        saveButton.setOpaque(true);
-        saveButton.setBorderPainted(false);
-        saveButton.addActionListener(this::saveGrades);
-        bottomPanel.add(saveButton, BorderLayout.EAST);
 
         add(bottomPanel, BorderLayout.SOUTH);
 
@@ -207,46 +198,6 @@ public class InstructorGradebookPanel extends JPanel {
             }
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Error loading grades: " + ex.getMessage());
-        }
-    }
-
-    private void saveGrades(ActionEvent e) {
-        try {
-            int count = tableModel.getRowCount();
-            if (count == 0) return;
-
-            // Note: These are defaults. In a real app, we'd fetch course-specific configs from DB.
-            double wQ = 20, wM = 30, wF = 50;
-            double mQ = 20, mM = 50, mF = 100;
-
-            for (int i = 0; i < count; i++) {
-                int enrollId = (Integer) tableModel.getValueAt(i, 0);
-                double quiz = parseScore(tableModel.getValueAt(i, 3));
-                double mid = parseScore(tableModel.getValueAt(i, 4));
-                double fin = parseScore(tableModel.getValueAt(i, 5));
-
-                double pctQ = (quiz / mQ) * wQ;
-                double pctM = (mid / mM) * wM;
-                double pctF = (fin / mF) * wF;
-                double total = pctQ + pctM + pctF;
-
-                // --- UPDATED LOGIC: Full Scale (A, A-, B, B-...) ---
-                String letter;
-                if (total >= 90) letter = "A";
-                else if (total >= 85) letter = "A-";
-                else if (total >= 80) letter = "B";
-                else if (total >= 75) letter = "B-";
-                else if (total >= 70) letter = "C";
-                else if (total >= 65) letter = "C-";
-                else if (total >= 60) letter = "D";
-                else letter = "F";
-
-                instructorService.updateGrades(enrollId, quiz, mid, fin, letter);
-                tableModel.setValueAt(letter, i, 6);
-            }
-            JOptionPane.showMessageDialog(this, "Grades Saved Successfully!");
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error saving: " + ex.getMessage());
         }
     }
 
@@ -360,7 +311,7 @@ public class InstructorGradebookPanel extends JPanel {
                         }
                     }
                 }
-                JOptionPane.showMessageDialog(this, "Imported " + updatedCount + " records.\nClick 'Save Grades' to calculate and commit.");
+                JOptionPane.showMessageDialog(this, "Imported " + updatedCount + " records.\n(View only - changes not saved to DB)");
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "Error reading CSV: " + ex.getMessage());
             }

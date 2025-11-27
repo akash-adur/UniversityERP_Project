@@ -98,7 +98,27 @@ public class AdminService {
         }
     }
 
+    // --- MODIFIED: Added duplicate name check ---
     public void createSection(int courseId, String dayTime, String room, int capacity, String semester, int year, String sectionName) throws SQLException {
+        // 1. Check if a section with this name already exists for this course/term
+        // We only check if the name is NOT "N/A" (assuming multiple unnamed sections are allowed)
+        if (sectionName != null && !sectionName.trim().equalsIgnoreCase("N/A")) {
+            String checkSql = "SELECT COUNT(*) FROM ERPDB.sections WHERE course_id=? AND semester=? AND year=? AND section_name=?";
+            try (Connection conn = DatabaseFactory.getErpDS().getConnection();
+                 PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+                checkStmt.setInt(1, courseId);
+                checkStmt.setString(2, semester);
+                checkStmt.setInt(3, year);
+                checkStmt.setString(4, sectionName);
+                try (ResultSet rs = checkStmt.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) > 0) {
+                        throw new SQLException("Section '" + sectionName + "' already exists for this course in " + semester + " " + year + ".");
+                    }
+                }
+            }
+        }
+
+        // 2. Proceed with creation
         String sql = "INSERT INTO ERPDB.sections (course_id, day_time, room, capacity, semester, year, section_name, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)";
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -176,7 +196,6 @@ public class AdminService {
         }
     }
 
-    // --- NEW METHOD: Unlock User ---
     public void unlockUser(String username) throws SQLException {
         String sql = "UPDATE AuthDB.users_auth SET status = 'active', failed_attempts = 0 WHERE username = ?";
         try (Connection conn = DatabaseFactory.getAuthDS().getConnection();

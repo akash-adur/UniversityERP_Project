@@ -5,10 +5,13 @@ import edu.univ.erp.domain.UserSession;
 import edu.univ.erp.service.StudentService;
 
 import javax.swing.*;
+import javax.swing.event.AncestorEvent;
+import javax.swing.event.AncestorListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.List;
 
 public class StudentRegistrationsPanel extends JPanel {
@@ -17,6 +20,7 @@ public class StudentRegistrationsPanel extends JPanel {
     private final StudentService studentService;
     private JTable enrollmentsTable;
     private DefaultTableModel tableModel;
+    private JLabel dropDeadlineLabel; // RESTORED: Class level variable
 
     public StudentRegistrationsPanel(UserSession session, StudentService studentService) {
         this.session = session;
@@ -25,30 +29,19 @@ public class StudentRegistrationsPanel extends JPanel {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // --- UPDATED COLUMNS ---
         String[] columnNames = {"Course Code", "Title", "Sec", "Instructor", "Days", "Time", "Room", "Status"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override public boolean isCellEditable(int row, int column) { return false; }
         };
 
         enrollmentsTable = new JTable(tableModel);
-
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(JLabel.CENTER);
         enrollmentsTable.setDefaultRenderer(Object.class, centerRenderer);
         ((DefaultTableCellRenderer)enrollmentsTable.getTableHeader().getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
 
-        // Column Widths
-        enrollmentsTable.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
-        enrollmentsTable.getColumnModel().getColumn(0).setPreferredWidth(80);
-        enrollmentsTable.getColumnModel().getColumn(1).setPreferredWidth(200);
-        enrollmentsTable.getColumnModel().getColumn(2).setPreferredWidth(40); // Sec
-        enrollmentsTable.getColumnModel().getColumn(2).setMaxWidth(60);       // Sec
-        enrollmentsTable.getColumnModel().getColumn(3).setPreferredWidth(120);
-        enrollmentsTable.getColumnModel().getColumn(4).setPreferredWidth(80); // Days
-        enrollmentsTable.getColumnModel().getColumn(5).setPreferredWidth(80); // Time
-        enrollmentsTable.getColumnModel().getColumn(6).setPreferredWidth(80); // Room
-        enrollmentsTable.getColumnModel().getColumn(7).setPreferredWidth(80); // Status
+        enrollmentsTable.getColumnModel().getColumn(2).setPreferredWidth(40);
+        enrollmentsTable.getColumnModel().getColumn(2).setMaxWidth(60);
 
         JScrollPane scrollPane = new JScrollPane(enrollmentsTable);
         add(scrollPane, BorderLayout.CENTER);
@@ -57,15 +50,38 @@ public class StudentRegistrationsPanel extends JPanel {
         dropButton.addActionListener(e -> dropAction());
 
         JPanel bottomPanel = new JPanel(new BorderLayout());
-        JLabel infoLabel = new JLabel("Last day to drop: 2025-11-30");
-        infoLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
-        infoLabel.setForeground(Color.GRAY);
 
-        bottomPanel.add(infoLabel, BorderLayout.WEST);
+        // RESTORED: Dynamic Label initialization
+        dropDeadlineLabel = new JLabel("Loading deadline...");
+        dropDeadlineLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
+        dropDeadlineLabel.setForeground(Color.GRAY);
+
+        bottomPanel.add(dropDeadlineLabel, BorderLayout.WEST);
         bottomPanel.add(dropButton, BorderLayout.EAST);
         add(bottomPanel, BorderLayout.SOUTH);
 
+        // Auto-refresh when tab is opened
+        addAncestorListener(new AncestorListener() {
+            public void ancestorAdded(AncestorEvent event) {
+                loadRegistrations();
+                loadDeadline(); // RESTORED: Fetch deadline on tab open
+            }
+            public void ancestorRemoved(AncestorEvent event) {}
+            public void ancestorMoved(AncestorEvent event) {}
+        });
+
         loadRegistrations();
+        loadDeadline(); // Initial load
+    }
+
+    // RESTORED: Logic to fetch deadline from DB
+    private void loadDeadline() {
+        try {
+            LocalDate deadline = studentService.getDropDeadline();
+            dropDeadlineLabel.setText("Last day to drop: " + deadline);
+        } catch (Exception e) {
+            dropDeadlineLabel.setText("Could not load drop deadline.");
+        }
     }
 
     private void loadRegistrations() {
@@ -83,14 +99,8 @@ public class StudentRegistrationsPanel extends JPanel {
                 }
 
                 tableModel.addRow(new Object[]{
-                        e.getCourseCode(),
-                        e.getCourseTitle(),
-                        e.getSectionName(),
-                        e.getInstructorName(),
-                        days,
-                        time,
-                        e.getRoom(),
-                        e.getStatus()
+                        e.getCourseCode(), e.getCourseTitle(), e.getSectionName(),
+                        e.getInstructorName(), days, time, e.getRoom(), e.getStatus()
                 });
             }
         } catch (SQLException e) {
