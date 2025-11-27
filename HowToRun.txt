@@ -1,0 +1,16 @@
+HOW TO RUN THE UNIVERSITY ERP APP
+
+1. Database Setup:
+   - Open your MySQL Workbench/Client.
+   - Ensure user 'root' has whatever password the user has in MySQL (update src/main/java/edu/univ/erp/util/DatabaseSetup.java).
+   - Run the 'DatabaseSetup' class (edu.univ.erp.util.DatabaseSetup) to initialize tables and seed users.
+
+2. Running the App:
+   - Run 'Main' class (edu.univ.erp.Main).
+   - The Login Screen will appear.
+
+3. Credentials (Username / Password):
+   - Admin:      admin1 / password123
+   - Instructor: inst1  / password123
+   - Student 1:  stu1   / password123
+   - Student 2:  stu2   / password123
