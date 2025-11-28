@@ -98,10 +98,7 @@ public class AdminService {
         }
     }
 
-    // --- MODIFIED: Added duplicate name check ---
     public void createSection(int courseId, String dayTime, String room, int capacity, String semester, int year, String sectionName) throws SQLException {
-        // 1. Check if a section with this name already exists for this course/term
-        // We only check if the name is NOT "N/A" (assuming multiple unnamed sections are allowed)
         if (sectionName != null && !sectionName.trim().equalsIgnoreCase("N/A")) {
             String checkSql = "SELECT COUNT(*) FROM ERPDB.sections WHERE course_id=? AND semester=? AND year=? AND section_name=?";
             try (Connection conn = DatabaseFactory.getErpDS().getConnection();
@@ -118,7 +115,6 @@ public class AdminService {
             }
         }
 
-        // 2. Proceed with creation
         String sql = "INSERT INTO ERPDB.sections (course_id, day_time, room, capacity, semester, year, section_name, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)";
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -132,6 +128,25 @@ public class AdminService {
             stmt.executeUpdate();
         }
     }
+
+    // --- ADDED: Update Section Method ---
+    public void updateSection(int sectionId, String dayTime, String room, int capacity, int instructorId) throws SQLException {
+        String sql = "UPDATE ERPDB.sections SET day_time=?, room=?, capacity=?, instructor_id=? WHERE section_id=?";
+        try (Connection conn = DatabaseFactory.getErpDS().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, dayTime);
+            stmt.setString(2, room);
+            stmt.setInt(3, capacity);
+            if (instructorId > 0) {
+                stmt.setInt(4, instructorId);
+            } else {
+                stmt.setNull(4, java.sql.Types.INTEGER);
+            }
+            stmt.setInt(5, sectionId);
+            stmt.executeUpdate();
+        }
+    }
+    // ------------------------------------
 
     public List<Instructor> getAllInstructors() throws SQLException {
         List<Instructor> instructors = new ArrayList<>();

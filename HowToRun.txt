@@ -1,16 +1,41 @@
-HOW TO RUN THE UNIVERSITY ERP APP
+University ERP Project
+======================
 
-1. Database Setup:
-   - Open your MySQL Workbench/Client.
-   - Ensure user 'root' has whatever password the user has in MySQL (update src/main/java/edu/univ/erp/util/DatabaseSetup.java).
-   - Run the 'DatabaseSetup' class (edu.univ.erp.util.DatabaseSetup) to initialize tables and seed users.
+Prerequisites:
+- Java 21
+- Maven
+- MySQL Server (running on port 3306)
 
-2. Running the App:
-   - Run 'Main' class (edu.univ.erp.Main).
-   - The Login Screen will appear.
+------------------------------------------------------------------------
+STEP 1: CONFIGURATION
+------------------------------------------------------------------------
+1. Open the file: src/main/resources/application.properties
+2. Change 'db.user' and 'db.password' to match your local MySQL credentials.
+   (Make sure your MySQL server is running first!)
 
-3. Credentials (Username / Password):
-   - Admin:      admin1 / password123
-   - Instructor: inst1  / password123
-   - Student 1:  stu1   / password123
-   - Student 2:  stu2   / password123
+------------------------------------------------------------------------
+STEP 2: DATABASE SETUP (Run once)
+------------------------------------------------------------------------
+Open a terminal in this folder and run these commands:
+
+  mvn clean compile
+  mvn exec:java -Dexec.mainClass="edu.univ.erp.util.DatabaseSetup"
+
+Wait for the message: "✅ Database Setup Complete!"
+
+------------------------------------------------------------------------
+STEP 3: RUNNING THE APP
+------------------------------------------------------------------------
+Start the application with:
+
+  mvn exec:java -Dexec.mainClass="edu.univ.erp.Main"
+
+------------------------------------------------------------------------
+LOGIN CREDENTIALS
+------------------------------------------------------------------------
+Role        Username    Password
+----        --------    --------
+Admin       admin1      password123
+Instructor  inst1       password123
+Student     stu1        password123
+Student     stu2        password123

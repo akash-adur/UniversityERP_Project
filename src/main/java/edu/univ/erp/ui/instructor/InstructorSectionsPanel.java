@@ -29,6 +29,9 @@ public class InstructorSectionsPanel extends JPanel {
         table.setDefaultRenderer(Object.class, centerRenderer);
         ((DefaultTableCellRenderer)table.getTableHeader().getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
 
+        // --- ADDED: Disable column reordering ---
+        table.getTableHeader().setReorderingAllowed(false);
+
         // Set Width for "Sec"
         table.getColumnModel().getColumn(2).setPreferredWidth(40);
         table.getColumnModel().getColumn(2).setMaxWidth(60);

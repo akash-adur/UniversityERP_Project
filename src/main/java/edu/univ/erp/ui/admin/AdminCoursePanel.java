@@ -1,5 +1,7 @@
 package edu.univ.erp.ui.admin;
 
+import com.github.lgooddatepicker.components.DatePicker;
+import com.github.lgooddatepicker.components.DatePickerSettings;
 import edu.univ.erp.data.CourseDAO;
 import edu.univ.erp.domain.Course;
 import edu.univ.erp.service.AdminService;
@@ -9,6 +11,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
@@ -38,8 +42,8 @@ public class AdminCoursePanel extends JPanel {
     private final JSpinner yearSpinner = new JSpinner(new SpinnerNumberModel(2025, 2020, 2030, 1));
 
     // --- Settings Components ---
-    private final JSpinner addDeadlineSpinner;
-    private final JSpinner dropDeadlineSpinner;
+    private final DatePicker addDeadlineSpinner;
+    private final DatePicker dropDeadlineSpinner;
     private final JButton saveSettingsButton = new JButton("Save Settings");
 
     private AdminSectionsPanel sectionsPanel;
@@ -51,8 +55,18 @@ public class AdminCoursePanel extends JPanel {
 
         startTimeSpinner = createTimeSpinner();
         endTimeSpinner = createTimeSpinner();
-        addDeadlineSpinner = createDateSpinner();
-        dropDeadlineSpinner = createDateSpinner();
+
+        // --- CHANGED: Fix for DatePicker RuntimeException ---
+        // The library requires the DatePicker to be constructed BEFORE setting limits on its settings.
+
+        DatePickerSettings addSettings = new DatePickerSettings();
+        addDeadlineSpinner = new DatePicker(addSettings);
+        addSettings.setDateRangeLimits(LocalDate.now(), null); // Apply limit AFTER construction
+
+        DatePickerSettings dropSettings = new DatePickerSettings();
+        dropDeadlineSpinner = new DatePicker(dropSettings);
+        dropSettings.setDateRangeLimits(LocalDate.now(), null); // Apply limit AFTER construction
+        // ----------------------------------------------------
 
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -89,14 +103,6 @@ public class AdminCoursePanel extends JPanel {
         cal.set(Calendar.HOUR_OF_DAY, 10);
         cal.set(Calendar.MINUTE, 0);
         s.setValue(cal.getTime());
-        return s;
-    }
-
-    private JSpinner createDateSpinner() {
-        SpinnerDateModel model = new SpinnerDateModel();
-        model.setStart(new Date());
-        JSpinner s = new JSpinner(model);
-        s.setEditor(new JSpinner.DateEditor(s, "yyyy-MM-dd"));
         return s;
     }
 
@@ -221,10 +227,11 @@ public class AdminCoursePanel extends JPanel {
         try {
             String dropStr = adminService.getSetting("drop_deadline");
             String addStr = adminService.getSetting("add_deadline");
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-            if (addStr != null) addDeadlineSpinner.setValue(sdf.parse(addStr));
-            if (dropStr != null) dropDeadlineSpinner.setValue(sdf.parse(dropStr));
-        } catch (Exception e) { }
+            if (addStr != null) addDeadlineSpinner.setDate(LocalDate.parse(addStr));
+            if (dropStr != null) dropDeadlineSpinner.setDate(LocalDate.parse(dropStr));
+        } catch (DateTimeParseException | SQLException e) {
+            // Ignore parse errors or db errors
+        }
     }
 
     private void onCreateCourse() {
@@ -279,13 +286,17 @@ public class AdminCoursePanel extends JPanel {
     }
 
     private void onSaveSettings() {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-        String add = sdf.format((Date) addDeadlineSpinner.getValue());
-        String drop = sdf.format((Date) dropDeadlineSpinner.getValue());
+        LocalDate addDate = addDeadlineSpinner.getDate();
+        LocalDate dropDate = dropDeadlineSpinner.getDate();
+
+        if (addDate == null || dropDate == null) {
+            JOptionPane.showMessageDialog(this, "Please select valid dates.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
         try {
-            adminService.setSetting("add_deadline", add);
-            adminService.setSetting("drop_deadline", drop);
+            adminService.setSetting("add_deadline", addDate.toString());
+            adminService.setSetting("drop_deadline", dropDate.toString());
             JOptionPane.showMessageDialog(this, "Settings saved.");
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Failed to save.", "Error", JOptionPane.ERROR_MESSAGE);
@@ -299,7 +310,6 @@ public class AdminCoursePanel extends JPanel {
         }.execute();
     }
 
-    // RESTORED: Wait Dialog with visual feedback
     private void performRestore() {
         int choice = JOptionPane.showConfirmDialog(this,
                 "Are you sure you want to restore from the last MANUAL backup?\nAny changes made since then will be lost.",

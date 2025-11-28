@@ -3,6 +3,8 @@ package edu.univ.erp.auth;
 import edu.univ.erp.data.DatabaseFactory;
 import edu.univ.erp.domain.UserSession;
 import org.mindrot.jbcrypt.BCrypt;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -11,8 +13,9 @@ import java.sql.SQLException;
 
 public class AuthService {
 
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
+
     public UserSession login(String username, String password) throws AuthException {
-        // UPDATED SQL: Fetch status and failed_attempts
         String sql = "SELECT user_id, password_hash, role, status, failed_attempts FROM AuthDB.users_auth WHERE username = ?";
 
         try (Connection conn = DatabaseFactory.getAuthDS().getConnection();
@@ -28,39 +31,38 @@ public class AuthService {
                     String status = rs.getString("status");
                     int attempts = rs.getInt("failed_attempts");
 
-                    // 1. CHECK IF ALREADY LOCKED
                     if ("locked".equalsIgnoreCase(status)) {
+                        logger.warn("Login attempt on locked account: {}", username);
                         throw new AuthException("Account locked due to too many tries.");
                     }
 
-                    // 2. VERIFY PASSWORD
                     if (BCrypt.checkpw(password, storedHash)) {
-                        // Success: Reset attempts to 0
                         resetFailedAttempts(conn, userId);
+                        logger.info("User logged in successfully: {}", username);
                         return new UserSession(userId, username, role);
                     } else {
-                        // Failure: Increment attempts
                         attempts++;
                         updateFailedAttempts(conn, userId, attempts);
+                        logger.warn("Failed login attempt for user: {} (Attempts: {})", username, attempts);
 
                         if (attempts >= 5) {
                             lockAccount(conn, userId);
+                            logger.warn("Account locked for user: {}", username);
                             throw new AuthException("Account locked due to too many tries.");
                         }
                         throw new AuthException("Incorrect username or password.");
                     }
                 } else {
-                    // No user found
+                    logger.warn("Login failed: User not found - {}", username);
                     throw new AuthException("Incorrect username or password.");
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            logger.error("Database error during login for user: " + username, e);
             throw new AuthException("Database error. Please try again later.");
         }
     }
 
-    // --- NEW: Change Password Method ---
     public void changePassword(String username, String oldPassword, String newPassword) throws AuthException {
         String sql = "SELECT user_id, password_hash FROM AuthDB.users_auth WHERE username = ?";
 
@@ -74,29 +76,25 @@ public class AuthService {
                     int userId = rs.getInt("user_id");
                     String storedHash = rs.getString("password_hash");
 
-                    // 1. Verify Old Password
                     if (!BCrypt.checkpw(oldPassword, storedHash)) {
                         throw new AuthException("Current password is incorrect.");
                     }
 
-                    // 2. Hash New Password
                     String newHash = BCrypt.hashpw(newPassword, BCrypt.gensalt());
-
-                    // 3. Update Database
                     updatePasswordInDB(conn, userId, newHash);
+                    logger.info("Password changed successfully for user: {}", username);
 
                 } else {
                     throw new AuthException("User not found.");
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            logger.error("Database error during password change for user: " + username, e);
             throw new AuthException("Database error during password change.");
         }
     }
 
     private void updatePasswordInDB(Connection conn, int userId, String newHash) throws SQLException {
-        // Also reset failed attempts on successful password change for good measure
         String sql = "UPDATE AuthDB.users_auth SET password_hash = ?, failed_attempts = 0, status = 'active' WHERE user_id = ?";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, newHash);

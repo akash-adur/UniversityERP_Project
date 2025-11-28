@@ -1,7 +1,9 @@
 package edu.univ.erp.ui.student;
 
+import com.opencsv.CSVWriter; // --- ADDED ---
 import edu.univ.erp.domain.EnrollmentDetails;
 import edu.univ.erp.domain.UserSession;
+import edu.univ.erp.service.AdminService;
 import edu.univ.erp.service.StudentService;
 
 import javax.swing.*;
@@ -12,7 +14,6 @@ import java.awt.*;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.List;
@@ -182,9 +183,18 @@ public class StudentGradesPanel extends JPanel {
         }
     }
 
-    // --- RESTORED EXPORT METHODS ---
-
     private void showExportDialog() {
+        // --- Check Maintenance Mode ---
+        try {
+            String mode = new AdminService().getSetting("maintenance_mode");
+            if ("true".equalsIgnoreCase(mode)) {
+                JOptionPane.showMessageDialog(this, "⚠️ System is under maintenance. Transcript download is disabled.", "Maintenance", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+        } catch (Exception e) {
+            // Ignore check errors
+        }
+
         JDialog waitDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Please Wait", true);
         JPanel p = new JPanel(new BorderLayout(15, 15));
         p.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -225,18 +235,20 @@ public class StudentGradesPanel extends JPanel {
                 file = new File(file.getParentFile(), file.getName() + ".csv");
             }
 
-            try (PrintWriter pw = new PrintWriter(new FileWriter(file))) {
-                pw.println("Term,Course,Credits,Quiz,Midterm,Final,Grade");
+            // --- MODIFIED: Use CSVWriter ---
+            try (CSVWriter writer = new CSVWriter(new FileWriter(file))) {
+                writer.writeNext(new String[]{"Term", "Course", "Credits", "Quiz", "Midterm", "Final", "Grade"});
                 for (int i = 0; i < tableModel.getRowCount(); i++) {
-                    pw.printf("%s,%s,%s,%s,%s,%s,%s%n",
-                            tableModel.getValueAt(i, 0),
-                            tableModel.getValueAt(i, 1),
-                            tableModel.getValueAt(i, 2),
-                            tableModel.getValueAt(i, 3),
-                            tableModel.getValueAt(i, 4),
-                            tableModel.getValueAt(i, 5),
-                            tableModel.getValueAt(i, 6)
-                    );
+                    String[] row = {
+                            (String) tableModel.getValueAt(i, 0),
+                            (String) tableModel.getValueAt(i, 1),
+                            (String) tableModel.getValueAt(i, 2),
+                            (String) tableModel.getValueAt(i, 3),
+                            (String) tableModel.getValueAt(i, 4),
+                            (String) tableModel.getValueAt(i, 5),
+                            (String) tableModel.getValueAt(i, 6)
+                    };
+                    writer.writeNext(row);
                 }
                 JOptionPane.showMessageDialog(this, "Transcript saved successfully!");
             } catch (IOException ex) {

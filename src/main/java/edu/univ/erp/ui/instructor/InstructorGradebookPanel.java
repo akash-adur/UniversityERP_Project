@@ -1,9 +1,14 @@
 package edu.univ.erp.ui.instructor;
 
+import com.opencsv.CSVReader;
+import com.opencsv.CSVWriter;
 import edu.univ.erp.domain.Section;
 import edu.univ.erp.domain.UserSession;
+import edu.univ.erp.service.AdminService;
 import edu.univ.erp.service.InstructorService;
 import edu.univ.erp.service.InstructorService.GradeRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -19,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class InstructorGradebookPanel extends JPanel {
+
+    private static final Logger logger = LoggerFactory.getLogger(InstructorGradebookPanel.class);
 
     private final UserSession session;
     private final InstructorService instructorService;
@@ -135,7 +142,7 @@ public class InstructorGradebookPanel extends JPanel {
             allSections = instructorService.getSectionsForInstructor(session.getUserId());
             resetAndFilter();
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Failed to load sections", e);
         }
     }
 
@@ -196,7 +203,9 @@ public class InstructorGradebookPanel extends JPanel {
                         r.enrollmentId, r.rollNo, r.name, r.quiz, r.midterm, r.finals, r.letterGrade
                 });
             }
+            logger.info("Loaded gradebook for section: {}", selected.getSectionName());
         } catch (Exception ex) {
+            logger.error("Error loading grades", ex);
             JOptionPane.showMessageDialog(this, "Error loading grades: " + ex.getMessage());
         }
     }
@@ -235,6 +244,17 @@ public class InstructorGradebookPanel extends JPanel {
     }
 
     private void showFileOperation(boolean isSave) {
+        // --- Check Maintenance Mode ---
+        try {
+            String mode = new AdminService().getSetting("maintenance_mode");
+            if ("true".equalsIgnoreCase(mode)) {
+                JOptionPane.showMessageDialog(this, "⚠️ System is under maintenance. CSV operations are disabled.", "Maintenance", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+        } catch (Exception e) {
+            // Ignore check errors
+        }
+
         JDialog waitDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Please Wait", true);
         JPanel p = new JPanel(new BorderLayout(15, 15));
         p.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -266,15 +286,25 @@ public class InstructorGradebookPanel extends JPanel {
         if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             File file = fileChooser.getSelectedFile();
             if (!file.getName().toLowerCase().endsWith(".csv")) file = new File(file.getParentFile(), file.getName() + ".csv");
-            try (PrintWriter pw = new PrintWriter(file)) {
-                pw.println("EnrollID,RollNo,Name,Quiz,Midterm,Final,Grade");
+
+            try (CSVWriter writer = new CSVWriter(new FileWriter(file))) {
+                writer.writeNext(new String[]{"EnrollID", "RollNo", "Name", "Quiz", "Midterm", "Final", "Grade"});
                 for (int i = 0; i < tableModel.getRowCount(); i++) {
-                    pw.printf("%s,%s,%s,%s,%s,%s,%s%n",
-                            tableModel.getValueAt(i, 0), tableModel.getValueAt(i, 1), tableModel.getValueAt(i, 2),
-                            tableModel.getValueAt(i, 3), tableModel.getValueAt(i, 4), tableModel.getValueAt(i, 5), tableModel.getValueAt(i, 6));
+                    String[] row = {
+                            tableModel.getValueAt(i, 0).toString(),
+                            tableModel.getValueAt(i, 1).toString(),
+                            tableModel.getValueAt(i, 2).toString(),
+                            tableModel.getValueAt(i, 3).toString(),
+                            tableModel.getValueAt(i, 4).toString(),
+                            tableModel.getValueAt(i, 5).toString(),
+                            String.valueOf(tableModel.getValueAt(i, 6))
+                    };
+                    writer.writeNext(row);
                 }
+                logger.info("Gradebook exported successfully to: {}", file.getAbsolutePath());
                 JOptionPane.showMessageDialog(this, "Export Successful!");
             } catch (IOException ex) {
+                logger.error("Error exporting gradebook", ex);
                 JOptionPane.showMessageDialog(this, "Error saving file: " + ex.getMessage());
             }
         }
@@ -285,14 +315,16 @@ public class InstructorGradebookPanel extends JPanel {
         fileChooser.setFileFilter(new FileNameExtensionFilter("CSV Files", "csv"));
         if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             File file = fileChooser.getSelectedFile();
-            try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-                String line;
+
+            try (CSVReader reader = new CSVReader(new FileReader(file))) {
+                String[] parts;
                 boolean isHeader = true;
                 int updatedCount = 0;
-                while ((line = br.readLine()) != null) {
+
+                while ((parts = reader.readNext()) != null) {
                     if (isHeader) { isHeader = false; continue; }
-                    String[] parts = line.split(",");
                     if (parts.length < 6) continue;
+
                     String csvEnrollIdStr = parts[0].trim();
                     for (int i = 0; i < tableModel.getRowCount(); i++) {
                         String tableEnrollIdStr = tableModel.getValueAt(i, 0).toString();
@@ -306,13 +338,15 @@ public class InstructorGradebookPanel extends JPanel {
                                 tableModel.setValueAt(fin, i, 5);
                                 updatedCount++;
                             } catch (NumberFormatException ex) {
-                                System.err.println("Skipping invalid number for ID " + csvEnrollIdStr);
+                                logger.warn("Skipping invalid number format in CSV for ID {}", csvEnrollIdStr);
                             }
                         }
                     }
                 }
+                logger.info("Imported {} records from CSV", updatedCount);
                 JOptionPane.showMessageDialog(this, "Imported " + updatedCount + " records.\n(View only - changes not saved to DB)");
             } catch (Exception ex) {
+                logger.error("Error importing gradebook", ex);
                 JOptionPane.showMessageDialog(this, "Error reading CSV: " + ex.getMessage());
             }
         }
