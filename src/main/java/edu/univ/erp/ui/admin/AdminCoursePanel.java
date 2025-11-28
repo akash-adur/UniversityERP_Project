@@ -8,6 +8,7 @@ import edu.univ.erp.service.AdminService;
 import edu.univ.erp.service.BackupService;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
@@ -56,17 +57,13 @@ public class AdminCoursePanel extends JPanel {
         startTimeSpinner = createTimeSpinner();
         endTimeSpinner = createTimeSpinner();
 
-        // --- CHANGED: Fix for DatePicker RuntimeException ---
-        // The library requires the DatePicker to be constructed BEFORE setting limits on its settings.
-
         DatePickerSettings addSettings = new DatePickerSettings();
         addDeadlineSpinner = new DatePicker(addSettings);
-        addSettings.setDateRangeLimits(LocalDate.now(), null); // Apply limit AFTER construction
+        addSettings.setDateRangeLimits(LocalDate.now(), null);
 
         DatePickerSettings dropSettings = new DatePickerSettings();
         dropDeadlineSpinner = new DatePicker(dropSettings);
-        dropSettings.setDateRangeLimits(LocalDate.now(), null); // Apply limit AFTER construction
-        // ----------------------------------------------------
+        dropSettings.setDateRangeLimits(LocalDate.now(), null);
 
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -122,7 +119,99 @@ public class AdminCoursePanel extends JPanel {
         JButton createCourseButton = new JButton("Create Course");
         createCourseButton.addActionListener(e -> onCreateCourse());
         gbc.gridx=1; gbc.gridy=3; panel.add(createCourseButton, gbc);
-        gbc.gridy=4; gbc.weighty=1.0; panel.add(new JPanel(), gbc);
+
+        // --- Manage Courses Button ---
+        JButton manageCoursesButton = new JButton("Manage Courses (Edit/Delete)");
+        manageCoursesButton.addActionListener(e -> showCourseManager());
+        gbc.gridy=4; panel.add(manageCoursesButton, gbc);
+
+        gbc.gridy=5; gbc.weighty=1.0; panel.add(new JPanel(), gbc);
+    }
+
+    private void showCourseManager() {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Manage Courses", true);
+        dialog.setSize(500, 400);
+        dialog.setLocationRelativeTo(this);
+        dialog.setLayout(new BorderLayout(10, 10));
+
+        String[] cols = {"ID", "Code", "Title", "Credits"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable table = new JTable(model);
+
+        try {
+            List<Course> courses = courseDAO.getAllCourses();
+            for (Course c : courses) {
+                model.addRow(new Object[]{c.getCourseId(), c.getCode(), c.getTitle(), c.getCredits()});
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(dialog, "Error loading courses: " + e.getMessage());
+        }
+
+        dialog.add(new JScrollPane(table), BorderLayout.CENTER);
+
+        JPanel btnPanel = new JPanel();
+        JButton editBtn = new JButton("Edit Selected");
+        JButton deleteBtn = new JButton("Delete Selected");
+        deleteBtn.setBackground(new Color(200, 50, 50));
+        deleteBtn.setForeground(Color.WHITE);
+
+        editBtn.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row == -1) { JOptionPane.showMessageDialog(dialog, "Select a course."); return; }
+
+            int id = (Integer) model.getValueAt(row, 0);
+            String code = (String) model.getValueAt(row, 1);
+            String title = (String) model.getValueAt(row, 2);
+            int credits = (Integer) model.getValueAt(row, 3);
+
+            String newCode = JOptionPane.showInputDialog(dialog, "Course Code:", code);
+            if (newCode == null) return;
+            String newTitle = JOptionPane.showInputDialog(dialog, "Course Title:", title);
+            if (newTitle == null) return;
+            String credStr = JOptionPane.showInputDialog(dialog, "Credits:", credits);
+            if (credStr == null) return;
+
+            try {
+                int newCreds = Integer.parseInt(credStr);
+                adminService.updateCourse(id, newCode, newTitle, newCreds);
+                JOptionPane.showMessageDialog(dialog, "Course updated!");
+                dialog.dispose();
+                showCourseManager();
+                loadCourseDropdown();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(dialog, "Error updating: " + ex.getMessage());
+            }
+        });
+
+        deleteBtn.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row == -1) { JOptionPane.showMessageDialog(dialog, "Select a course."); return; }
+            int id = (Integer) model.getValueAt(row, 0);
+
+            int confirm = JOptionPane.showConfirmDialog(dialog,
+                    "Delete this course?",
+                    "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                try {
+                    adminService.deleteCourse(id);
+                    JOptionPane.showMessageDialog(dialog, "Course deleted!");
+                    dialog.dispose();
+                    showCourseManager();
+                    loadCourseDropdown();
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(dialog, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        btnPanel.add(editBtn);
+        btnPanel.add(deleteBtn);
+        dialog.add(btnPanel, BorderLayout.SOUTH);
+
+        dialog.setVisible(true);
     }
 
     private void setupSectionForm(JPanel panel) {

@@ -98,6 +98,42 @@ public class AdminService {
         }
     }
 
+    // --- ADDED: Update Course ---
+    public void updateCourse(int courseId, String code, String title, int credits) throws SQLException {
+        String sql = "UPDATE ERPDB.courses SET code=?, title=?, credits=? WHERE course_id=?";
+        try (Connection conn = DatabaseFactory.getErpDS().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, code);
+            stmt.setString(2, title);
+            stmt.setInt(3, credits);
+            stmt.setInt(4, courseId);
+            stmt.executeUpdate();
+        }
+    }
+
+    // --- ADDED: Delete Course with Validation ---
+    public void deleteCourse(int courseId) throws SQLException {
+        try (Connection conn = DatabaseFactory.getErpDS().getConnection()) {
+            // Check for dependencies first
+            String checkSql = "SELECT COUNT(*) FROM ERPDB.sections WHERE course_id = ?";
+            try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+                checkStmt.setInt(1, courseId);
+                try (ResultSet rs = checkStmt.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) > 0) {
+                        throw new SQLException("Cannot delete course: It has active sections. Delete them first.");
+                    }
+                }
+            }
+
+            // Proceed if safe
+            String sql = "DELETE FROM ERPDB.courses WHERE course_id=?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, courseId);
+                stmt.executeUpdate();
+            }
+        }
+    }
+
     public void createSection(int courseId, String dayTime, String room, int capacity, String semester, int year, String sectionName) throws SQLException {
         if (sectionName != null && !sectionName.trim().equalsIgnoreCase("N/A")) {
             String checkSql = "SELECT COUNT(*) FROM ERPDB.sections WHERE course_id=? AND semester=? AND year=? AND section_name=?";
@@ -129,7 +165,6 @@ public class AdminService {
         }
     }
 
-    // --- ADDED: Update Section Method ---
     public void updateSection(int sectionId, String dayTime, String room, int capacity, int instructorId) throws SQLException {
         String sql = "UPDATE ERPDB.sections SET day_time=?, room=?, capacity=?, instructor_id=? WHERE section_id=?";
         try (Connection conn = DatabaseFactory.getErpDS().getConnection();
@@ -146,7 +181,30 @@ public class AdminService {
             stmt.executeUpdate();
         }
     }
-    // ------------------------------------
+
+    // --- ADDED: Delete Section with Specific Error ---
+    public void deleteSection(int sectionId) throws SQLException {
+        try (Connection conn = DatabaseFactory.getErpDS().getConnection()) {
+            // 1. Check for enrollments
+            String checkEnrollments = "SELECT COUNT(*) FROM ERPDB.enrollments WHERE section_id = ?";
+            try (PreparedStatement checkStmt = conn.prepareStatement(checkEnrollments)) {
+                checkStmt.setInt(1, sectionId);
+                try (ResultSet rs = checkStmt.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) > 0) {
+                        // The specific error message requested
+                        throw new SQLException("A student has enrolled in this course you cant delete it");
+                    }
+                }
+            }
+
+            // 2. If no enrollments, delete the section
+            String sql = "DELETE FROM ERPDB.sections WHERE section_id=?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, sectionId);
+                stmt.executeUpdate();
+            }
+        }
+    }
 
     public List<Instructor> getAllInstructors() throws SQLException {
         List<Instructor> instructors = new ArrayList<>();
