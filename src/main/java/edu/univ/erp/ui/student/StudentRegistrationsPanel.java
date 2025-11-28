@@ -40,6 +40,9 @@ public class StudentRegistrationsPanel extends JPanel {
         enrollmentsTable.setDefaultRenderer(Object.class, centerRenderer);
         ((DefaultTableCellRenderer)enrollmentsTable.getTableHeader().getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
 
+        // --- ADDED: Disable column reordering ---
+        enrollmentsTable.getTableHeader().setReorderingAllowed(false);
+
         enrollmentsTable.getColumnModel().getColumn(2).setPreferredWidth(40);
         enrollmentsTable.getColumnModel().getColumn(2).setMaxWidth(60);
 

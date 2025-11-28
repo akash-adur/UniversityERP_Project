@@ -1,32 +1,49 @@
 package edu.univ.erp.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.sql.SQLException;
+import java.util.Properties;
 
 import static edu.univ.erp.util.PasswordHasher.hashPassword;
 
 public class DatabaseSetup {
 
-    // !!! CONFIGURE THESE !!!
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/";
-    private static final String DB_USER = "root";
-    private static final String DB_PASSWORD = "akash6170";
+    private static final Logger logger = LoggerFactory.getLogger(DatabaseSetup.class);
 
     public static void main(String[] args) {
-        System.out.println("... Starting Database Setup ...");
+        logger.info("... Starting Database Setup ...");
 
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        Properties props = new Properties();
+        try (InputStream input = DatabaseSetup.class.getClassLoader().getResourceAsStream("application.properties")) {
+            if (input == null) {
+                logger.error("application.properties not found");
+                return;
+            }
+            props.load(input);
+        } catch (Exception e) {
+            logger.error("Failed to load configuration", e);
+            return;
+        }
+
+        String dbUrl = props.getProperty("db.server.url"); // e.g. jdbc:mysql://localhost:3306/
+        String user = props.getProperty("db.user");
+        String pass = props.getProperty("db.password");
+
+        try (Connection conn = DriverManager.getConnection(dbUrl, user, pass);
              Statement stmt = conn.createStatement()) {
 
-            System.out.println("✅ Connected to MySQL Server.");
+            logger.info("✅ Connected to MySQL Server.");
 
             // 1. SETUP AuthDB
             stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS AuthDB");
             stmt.executeUpdate("USE AuthDB");
 
-            // UPDATED: Added failed_attempts column
             String createAuthTable = "CREATE TABLE IF NOT EXISTS users_auth (" +
                     "user_id INT PRIMARY KEY AUTO_INCREMENT, " +
                     "username VARCHAR(50) NOT NULL UNIQUE, " +
@@ -40,7 +57,6 @@ public class DatabaseSetup {
 
             String defaultHash = hashPassword("password123");
 
-            // Added failed_attempts to INSERT (defaults to 0 anyway, but good for clarity if needed)
             String insertUsers = "INSERT IGNORE INTO users_auth (user_id, username, role, password_hash, status, failed_attempts) VALUES " +
                     "(1, 'admin1', 'Admin',      '" + defaultHash + "', 'active', 0), " +
                     "(2, 'inst1',  'Instructor', '" + defaultHash + "', 'active', 0), " +
@@ -101,7 +117,6 @@ public class DatabaseSetup {
                     "FOREIGN KEY (student_id) REFERENCES students(user_id), " +
                     "FOREIGN KEY (section_id) REFERENCES sections(section_id))");
 
-            // --- SEED DATA ---
             stmt.executeUpdate("INSERT IGNORE INTO instructors (user_id, department, title) VALUES (2, 'Computer Science', 'Professor')");
             stmt.executeUpdate("INSERT IGNORE INTO students (user_id, roll_no, program, year) VALUES (3, 'S101', 'B.Tech CS', 2), (4, 'S102', 'B.Tech ECE', 2)");
 
@@ -118,11 +133,10 @@ public class DatabaseSetup {
             stmt.executeUpdate("INSERT IGNORE INTO sections (section_id, course_id, instructor_id, day_time, room, capacity, semester, year) " +
                     "VALUES (2, 2, NULL, 'Tue/Thu 09:00', 'Room 202', 40, 'Monsoon', 2025)");
 
-            System.out.println("✅ Database Setup Complete!");
+            logger.info("✅ Database Setup Complete!");
 
         } catch (SQLException e) {
-            System.err.println("❌ Database Setup Failed!");
-            e.printStackTrace();
+            logger.error("❌ Database Setup Failed!", e);
         }
     }
 }

@@ -20,7 +20,7 @@ public class InstructorGradesManagementPanel extends JPanel {
 
     // UI Components
     private JComboBox<Section> sectionDropdown;
-    private JComboBox<StudentItem> studentDropdown; // Now Searchable
+    private JComboBox<StudentItem> studentDropdown;
 
     private JTextField quizField, midField, finalField;
     private JButton saveButton;
@@ -36,7 +36,7 @@ public class InstructorGradesManagementPanel extends JPanel {
 
     private List<GradeRecord> currentRecords;
     private List<Section> allSections;
-    private boolean isAdjusting = false; // Guard against recursive events
+    private boolean isAdjusting = false;
 
     public InstructorGradesManagementPanel(UserSession session) {
         this.session = session;
@@ -48,7 +48,7 @@ public class InstructorGradesManagementPanel extends JPanel {
         JPanel mainContent = new JPanel();
         mainContent.setLayout(new BoxLayout(mainContent, BoxLayout.Y_AXIS));
 
-        // --- 1. Top Panel: Searchable Section ---
+        // --- 1. Top Panel ---
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         topPanel.setBorder(BorderFactory.createTitledBorder("Step 1: Choose Section"));
 
@@ -77,7 +77,6 @@ public class InstructorGradesManagementPanel extends JPanel {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
 
-        // -- Row 0: Weights --
         gbc.gridx=0; gbc.gridy=0; configPanel.add(new JLabel("Weights (%):"), gbc);
         gbc.gridx=1; configPanel.add(new JLabel("Quiz"), gbc);
         gbc.gridx=2; wQuiz = new JTextField("20", 3); configPanel.add(wQuiz, gbc);
@@ -86,13 +85,11 @@ public class InstructorGradesManagementPanel extends JPanel {
         gbc.gridx=5; configPanel.add(new JLabel("Final"), gbc);
         gbc.gridx=6; wFinal = new JTextField("50", 3); configPanel.add(wFinal, gbc);
 
-        // -- Row 1: Max Scores --
         gbc.gridx=0; gbc.gridy=1; configPanel.add(new JLabel("Max Scores:"), gbc);
         gbc.gridx=2; maxQuiz = new JTextField("20", 3); configPanel.add(maxQuiz, gbc);
         gbc.gridx=4; maxMid = new JTextField("50", 3); configPanel.add(maxMid, gbc);
         gbc.gridx=6; maxFinal = new JTextField("100", 3); configPanel.add(maxFinal, gbc);
 
-        // -- Row 2: Cutoffs (A to B-) --
         gbc.gridx=0; gbc.gridy=2; configPanel.add(new JLabel("Min % for:"), gbc);
         gbc.gridx=1; configPanel.add(new JLabel("A"), gbc);
         gbc.gridx=2; cutoffA = new JTextField("90", 3); configPanel.add(cutoffA, gbc);
@@ -103,7 +100,6 @@ public class InstructorGradesManagementPanel extends JPanel {
         gbc.gridx=7; configPanel.add(new JLabel("B-"), gbc);
         gbc.gridx=8; cutoffBMinus = new JTextField("75", 3); configPanel.add(cutoffBMinus, gbc);
 
-        // -- Row 3: Cutoffs (C to D) --
         gbc.gridx=1; gbc.gridy=3; configPanel.add(new JLabel("C"), gbc);
         gbc.gridx=2; cutoffC = new JTextField("70", 3); configPanel.add(cutoffC, gbc);
         gbc.gridx=3; configPanel.add(new JLabel("C-"), gbc);
@@ -124,7 +120,6 @@ public class InstructorGradesManagementPanel extends JPanel {
         gbc.gridx = 0; gbc.gridy = 0;
         gradePanel.add(new JLabel("Search/Select Student:", SwingConstants.CENTER), gbc);
 
-        // --- UPDATED: Searchable Student Dropdown ---
         studentDropdown = new JComboBox<>();
         studentDropdown.setPreferredSize(new Dimension(250, 30));
         studentDropdown.setEditable(true);
@@ -179,7 +174,6 @@ public class InstructorGradesManagementPanel extends JPanel {
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    // --- SECTION FILTER LOGIC ---
     private void filterSections(String input) {
         isAdjusting = true;
         try {
@@ -204,7 +198,6 @@ public class InstructorGradesManagementPanel extends JPanel {
         }
     }
 
-    // --- STUDENT FILTER LOGIC (NEW) ---
     private void filterStudents(String input) {
         isAdjusting = true;
         try {
@@ -212,7 +205,6 @@ public class InstructorGradesManagementPanel extends JPanel {
             if (currentRecords != null) {
                 for (GradeRecord r : currentRecords) {
                     StudentItem item = new StudentItem(r);
-                    // Check matches in Name OR Roll No
                     if (item.toString().toLowerCase().contains(input.toLowerCase())) {
                         filtered.add(item);
                     }
@@ -250,14 +242,12 @@ public class InstructorGradesManagementPanel extends JPanel {
             Section selected = (Section) item;
             try {
                 currentRecords = instructorService.getGradebook(selected.getSectionId());
-                // Reset student dropdown with full list
                 studentDropdown.removeAllItems();
                 JTextField editor = (JTextField) studentDropdown.getEditor().getEditorComponent();
                 editor.setText("");
 
                 for (GradeRecord r : currentRecords) studentDropdown.addItem(new StudentItem(r));
 
-                // Clear fields
                 quizField.setText(""); midField.setText(""); finalField.setText("");
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "Error loading students: " + ex.getMessage());
@@ -268,16 +258,8 @@ public class InstructorGradesManagementPanel extends JPanel {
     private void onStudentSelected(ActionEvent e) {
         if (isAdjusting) return;
 
-        // IMPORTANT: Check if the selected item is actually a StudentItem object.
-        // If the user is typing "Akash", getSelectedItem() returns String "Akash".
-        // We only want to update fields when they click/select a valid Object.
         Object item = studentDropdown.getSelectedItem();
-
-        if (item == null || !(item instanceof StudentItem)) {
-            // If it's just text (not a selection), don't clear fields immediately to allow typing
-            // OR clear them if you prefer. For now, we do nothing.
-            return;
-        }
+        if (item == null || !(item instanceof StudentItem)) return;
 
         StudentItem selectedItem = (StudentItem) item;
         GradeRecord r = selectedItem.record;
@@ -353,6 +335,14 @@ public class InstructorGradesManagementPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Please check all numbers (weights, scores, cutoffs).", "Format Error", JOptionPane.ERROR_MESSAGE);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Error saving: " + ex.getMessage());
+            // --- FIX: Revert Fields on Failure ---
+            if (selectedItem != null && selectedItem.record != null) {
+                GradeRecord r = selectedItem.record;
+                quizField.setText(String.valueOf(r.quiz));
+                midField.setText(String.valueOf(r.midterm));
+                finalField.setText(String.valueOf(r.finals));
+            }
+            // --------------------------------------
         }
     }
 

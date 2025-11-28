@@ -1,6 +1,9 @@
 package edu.univ.erp.service;
 
+import com.opencsv.*;
 import edu.univ.erp.data.DatabaseFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.sql.*;
@@ -8,6 +11,7 @@ import java.util.Date;
 
 public class BackupService {
 
+    private static final Logger logger = LoggerFactory.getLogger(BackupService.class);
     private static final String BACKUP_DIR = "backups";
     private static final String[] TABLES = {"enrollments", "sections", "courses", "students", "instructors", "settings"};
 
@@ -19,9 +23,9 @@ public class BackupService {
             for (String table : TABLES) {
                 exportTable(conn, table);
             }
-            System.out.println("Backup completed at " + new Date());
+            logger.info("Backup completed at {}", new Date());
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Backup creation failed", e);
         }
     }
 
@@ -50,8 +54,10 @@ public class BackupService {
             stmt.execute("SET FOREIGN_KEY_CHECKS = 1");
 
             conn.commit();
+            logger.info("Database restore completed successfully.");
         } catch (Exception e) {
             if (conn != null) conn.rollback();
+            logger.error("Restore failed, rolling back", e);
             throw new Exception("Restore failed: " + e.getMessage());
         } finally {
             if (conn != null) conn.close();
@@ -60,21 +66,24 @@ public class BackupService {
 
     private void exportTable(Connection conn, String tableName) throws SQLException, IOException {
         String query = "SELECT * FROM " + tableName;
+
         try (Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(query);
-             PrintWriter pw = new PrintWriter(new FileWriter(new File(BACKUP_DIR, tableName + ".csv")))) {
+             CSVWriter writer = new CSVWriter(new FileWriter(new File(BACKUP_DIR, tableName + ".csv")),
+                     CSVWriter.DEFAULT_SEPARATOR,
+                     CSVWriter.DEFAULT_QUOTE_CHARACTER,
+                     ICSVWriter.NO_ESCAPE_CHARACTER,
+                     CSVWriter.DEFAULT_LINE_END)) {
 
             int colCount = rs.getMetaData().getColumnCount();
 
             while (rs.next()) {
-                StringBuilder sb = new StringBuilder();
-                for (int i = 1; i <= colCount; i++) {
-                    String val = rs.getString(i);
-                    if (val == null) val = "\\N";
-                    if (val.contains(",")) val = "\"" + val + "\"";
-                    sb.append(val).append(i == colCount ? "" : ",");
+                String[] row = new String[colCount];
+                for (int i = 0; i < colCount; i++) {
+                    String val = rs.getString(i + 1);
+                    row[i] = (val == null) ? "\\N" : val;
                 }
-                pw.println(sb);
+                writer.writeNext(row);
             }
         }
     }
@@ -83,7 +92,16 @@ public class BackupService {
         File file = new File(BACKUP_DIR, tableName + ".csv");
         if (!file.exists()) return;
 
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+        CSVParser parser = new CSVParserBuilder()
+                .withSeparator(',')
+                .withQuoteChar('"')
+                .withEscapeChar(ICSVWriter.NO_ESCAPE_CHARACTER)
+                .build();
+
+        try (CSVReader reader = new CSVReaderBuilder(new FileReader(file))
+                .withCSVParser(parser)
+                .build()) {
+
             ResultSet rs = conn.createStatement().executeQuery("SELECT * FROM " + tableName + " LIMIT 0");
             int colCount = rs.getMetaData().getColumnCount();
 
@@ -93,13 +111,10 @@ public class BackupService {
             String sql = "INSERT INTO " + tableName + " VALUES (" + placeholders + ")";
             PreparedStatement pstmt = conn.prepareStatement(sql);
 
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] data = line.split(",", -1);
-
+            String[] data;
+            while ((data = reader.readNext()) != null) {
                 for (int i = 0; i < colCount; i++) {
                     String val = (i < data.length) ? data[i] : "";
-                    if (val.startsWith("\"") && val.endsWith("\"")) val = val.substring(1, val.length()-1);
 
                     if ("\\N".equals(val)) {
                         pstmt.setObject(i + 1, null);
@@ -110,6 +125,8 @@ public class BackupService {
                 pstmt.addBatch();
             }
             pstmt.executeBatch();
+        } catch (Exception e) {
+            throw new IOException("CSV Parse Error: " + e.getMessage());
         }
     }
 }
